@@ -129,18 +129,23 @@ export module Controllers {
           const oid = rec.oid;
           this.getRecord(oid).subscribe(record => {
             //TODO: hardcoded to RDMP for the time being
+            sails.log.error("Updating oid: "+ oid +" name "+ record.metadata.title);
             var transferConfig = this.getTransferResponsibilityConfigObject(sails.config.recordtype,'rdmp');
-
+            sails.log.error("Role is: " + role)
             var nameField = transferConfig.fields[role].fieldNames.name;
             var emailField = transferConfig.fields[role].fieldNames.email;
-
+            sails.log.error("Setting " + nameField + " to " + toName);
+            sails.log.error("Setting " + emailField + " to " + toEmail);
 
             _.set(record, "metadata."+nameField, toName);
             _.set(record, "metadata."+emailField, toEmail);
 
             if(role == "chiefInvestigator") {
+              sails.log.error("Chief Investigator so setting data owner: ")
               nameField = transferConfig.fields["dataOwner"].fieldNames.name;
               emailField = transferConfig.fields["dataOwner"].fieldNames.email;
+              sails.log.error("Setting " + nameField +" to " + toName);
+              sails.log.error("Setting " + emailField +" to " + toEmail);
               _.set(record, "metadata."+nameField, toName);
               _.set(record, "metadata."+emailField, toEmail);
             }

@@ -57,7 +57,7 @@ module.exports.dynamicasset = {
       'moment': 'npm:moment',
       "moment-es6": 'npm:moment-es6/index.js',
       'ng2-completer': 'npm:ng2-completer/ng2-completer.umd.js',
-      'ngx-bootstrap': 'npm:ngx-bootstrap/bundles/ngx-bootstrap.umd.js',
+      'ngx-bootstrap': 'npm:ngx-bootstrap/bundles/ngx-bootstrap.es2015.js',
       'angular2-i18next': 'npm:angular2-i18next/index.js',
       'i18next': 'npm:i18next',
       'i18next-xhr-backend': 'npm:i18next-xhr-backend',

@@ -1,7 +1,8 @@
 module.exports = function(req, res, next) {
-  var contentTypeHeader = req.headers["content-type"] == null ? "" : req.headers["content-type"];
+  var authorizationHeader = req.headers["authorization"] == null ? "" : req.headers["authorization"];
 
-  if (!req.isAuthenticated() && contentTypeHeader.indexOf("application/json") != -1) {
+  sails.log.error("Has bearer token: " + hasValidFormatBearerToken(authorizationHeader));
+  if (!req.isAuthenticated() && hasValidFormatBearerToken(authorizationHeader)) {
     sails.config.passport.authenticate('bearer', function(err, user, info) {
       if(user != false) {
         req.user = user;
@@ -13,3 +14,7 @@ module.exports = function(req, res, next) {
   }
 
 };
+
+function hasValidFormatBearerToken(authorizationHeader) {
+  return /Bearer\s+.*/.test(authorizationHeader)
+}

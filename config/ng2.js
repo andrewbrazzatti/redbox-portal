@@ -5,7 +5,6 @@
 module.exports.ng2 = {
   force_bundle: false,
   apps: {
-    "user/login": ['/angular/localAuth/dist-bundle.js'],
     "record/edit": ['/angular/dmp/dist-bundle.js'],
     "record/view": ['/angular/dmp/dist-bundle.js'],
     "record/search": ['/angular/record_search/dist-bundle.js'],

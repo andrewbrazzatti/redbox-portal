@@ -56,8 +56,11 @@ function bundleNg2App() {
 
 function compileAoT() {
   echo "Running AoT compile..."
+  echo "ngc"
   node_modules/.bin/ngc -p tsconfig-aot.json
+  echo "sails compile"
   node_modules/.bin/grunt --gruntfile Gruntfile-ts-compile-sails.js
+  echo "ng2 compile"
   node_modules/.bin/grunt --gruntfile Gruntfile-ts-compile-ng2.js
   ng2apps=( `find assets/angular -maxdepth 1 -mindepth 1 -type d -printf '%f '` )
   for ng2app in "${ng2apps[@]}"
