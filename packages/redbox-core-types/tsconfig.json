@@ -6,14 +6,25 @@
     "outDir": "./dist",
     "strict": false,
     "inlineSourceMap": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
     "lib": [
       "es2023"
+    ],
+    "types": [
+      "node",
+      "lodash",
+      "express"
     ],
     "baseUrl": ".",
     "paths": {
       "@researchdatabox/sails-ng-common": ["../sails-ng-common/src/index.ts"],
       "@researchdatabox/raido-openapi-generated-node": ["../raido/src/index.ts"],
-      "@researchdatabox/redbox-core-types": ["./src/index.ts"]
+      "@researchdatabox/redbox-core-types": ["./src/index.ts"],
+      "axios": ["./node_modules/axios"],
+      "lodash": ["./node_modules/lodash"],
+      "luxon": ["./node_modules/luxon"],
+      "@jsonjoy.com/json-pointer": ["./node_modules/@jsonjoy.com/json-pointer"]
     }
   },
   "include": [

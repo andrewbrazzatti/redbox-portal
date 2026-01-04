@@ -1,7 +1,20 @@
-// This file is generated from internal/typescript-models/src/models/ThemeConfig.ts. Do not edit directly.
 /// <reference path="../sails.ts" />
 import { JsonMap } from './types';
+import { Entity, Attr, toWaterlineModelDef } from '../decorators';
 
+@Entity('themeconfig')
+export class ThemeConfigClass {
+  @Attr({ type: 'string' })
+  public name?: string;
+
+  @Attr({ type: 'string' })
+  public css?: string;
+}
+
+// Export the Waterline model definition for runtime use
+export const ThemeConfigWLDef = toWaterlineModelDef(ThemeConfigClass);
+
+// Type interface for backwards compatibility
 export interface ThemeConfigAttributes extends Sails.WaterlineAttributes {
   css?: string;
   name?: string;

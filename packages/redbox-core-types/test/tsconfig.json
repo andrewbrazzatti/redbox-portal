@@ -1,0 +1,24 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../dist-test",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "types": ["node", "mocha", "chai"],
+    "baseUrl": "..",
+    "paths": {
+      "@researchdatabox/sails-ng-common": ["../sails-ng-common/src/index.ts"],
+      "@researchdatabox/raido-openapi-generated-node": ["../raido/src/index.ts"],
+      "@researchdatabox/redbox-core-types": ["./src/index.ts"],
+      "@researchdatabox/redbox-core-types/*": ["./src/*"]
+    }
+  },
+  "include": [
+    "./**/*.ts",
+    "../src/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules/**"
+  ]
+}

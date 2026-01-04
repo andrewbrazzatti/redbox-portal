@@ -1,5 +1,8 @@
 import "./sails";
 
+// Re-export all types from sails.ts
+export * from "./sails";
+
 export {
     Attachment
 }
@@ -57,5 +60,16 @@ from "./Logger";
 export * from './model'
 export * from './models'
 export * from './decorator'
-export * from './services/generated'
-import './services/generated/globals';
+export * from './decorators'
+
+// Service and Controller implementations
+export * from './services/impl';
+export * from './controllers/impl';
+export * from './controllers/webservice';
+export * from './configmodels';
+export * from './policies';
+
+// Re-export the maps for dynamic loading
+export { SailsServices } from './services/impl';
+export { SailsControllers } from './controllers/impl';
+export { WebserviceControllers } from './controllers/webservice';

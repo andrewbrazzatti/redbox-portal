@@ -9,14 +9,16 @@
       "emitDecoratorMetadata": true,
       "esModuleInterop": true,
       "skipLibCheck": true,
-      "types": ["node", "mocha", "chai", "reflect-metadata"]
+      "typeRoots": ["./node_modules/@types"],
+      "types": ["node", "mocha", "chai"]
     },
     "exclude": [
       "node_modules/**",
       "typings/browser/**",
       "typings/browser.d.ts",
       "test/integration/**/*.ts",
-      "angular/**"
+      "angular/**",
+      "packages/**"
     ],
     "include": [
       "internal/sails-ts/**/*.ts",
@@ -27,6 +29,5 @@
     "buildOnSave": false,
     "atom": {
         "rewriteTsconfig": false
-    },
-    
+    }
 }

@@ -1,5 +1,5 @@
-import {Services as FormsModule} from "../../../../api/services/FormsService";
-import {Services as BrandingModule} from "../../../../api/services/BrandingService";
+import {Services as FormsModule} from "@researchdatabox/redbox-core-types/services/FormsService";
+import {Services as BrandingModule} from "@researchdatabox/redbox-core-types/services/BrandingService";
 import {FormConfigFrame} from "@researchdatabox/sails-ng-common";
 
 let expect: Chai.ExpectStatic;

@@ -1,6 +1,6 @@
 import {Observable, of} from "rxjs";
-import {Services, Services as FormRecordConsistencyModule} from "../../../../api/services/FormRecordConsistencyService";
-import {Services as FormsModule} from "../../../../api/services/FormsService";
+import {Services, Services as FormRecordConsistencyModule} from "@researchdatabox/redbox-core-types/services/FormRecordConsistencyService";
+import {Services as FormsModule} from "@researchdatabox/redbox-core-types/services/FormsService";
 import {
     AvailableFormComponentDefinitionFrames,
     FormConfigFrame, FormValidatorSummaryErrors,

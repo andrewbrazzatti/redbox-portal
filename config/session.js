@@ -1,15 +1,10 @@
+"use strict";
 /**
  * Session Configuration
  * (sails.config.session)
  *
- * Sails session integration leans heavily on the great work already done by
- * Express, but also unifies Socket.io with the Connect session store. It uses
- * Connect's cookie parser to normalize configuration differences between Express
- * and Socket.io and hooks into Sails' middleware interpreter to allow you to access
- * and auto-save to `req.session` with Socket.io the same way you would with Express.
- *
- * For more information on configuring the session, check out:
- * http://sailsjs.org/#!/documentation/reference/sails.config/sails.config.session.html
+ * Sails session integration is disabled in favor of redboxSession
  */
-
+Object.defineProperty(exports, "__esModule", { value: true });
 module.exports.session = false;
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoic2Vzc2lvbi5qcyIsInNvdXJjZVJvb3QiOiIiLCJzb3VyY2VzIjpbIi4uL2ludGVybmFsL3NhaWxzLXRzL2NvbmZpZy9zZXNzaW9uLnRzIl0sIm5hbWVzIjpbXSwibWFwcGluZ3MiOiI7QUFBQTs7Ozs7R0FLRzs7QUFFSCxNQUFNLENBQUMsT0FBTyxDQUFDLE9BQU8sR0FBRyxLQUFLLENBQUMifQ==

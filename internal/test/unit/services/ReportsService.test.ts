@@ -3,8 +3,9 @@
 import { expect } from 'chai';
 import * as _ from 'lodash';
 import { DateTime } from 'luxon';
+import { Services as ReportsModule } from '@researchdatabox/redbox-core-types/services/ReportsService';
 
-// Mock sails global BEFORE requiring ReportsService
+// Mock sails global BEFORE instantiating ReportsService
 (global as any).sails = {
   log: {
     verbose: () => {},
@@ -20,9 +21,8 @@ if (!(global as any)._) {
 
 process.env["sails_redbox__mochaTesting"] = "true";
 
-// Require ReportsService after mocks
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const ReportsService = require('../../../../api/services/ReportsService');
+// Instantiate ReportsService after mocks
+const ReportsService = new ReportsModule.Reports().exports();
 
 describe('The Reporting Service', function () {
   before(function (done) {

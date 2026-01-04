@@ -1,108 +1,59 @@
+"use strict";
 /**
  * Built-in Log Configuration
  * (sails.config.log)
  *
  * Configure the log level for your app, as well as the transport.
- *
- * For more information on the Sails logger, check out:
- * http://sailsjs.org/#!/documentation/concepts/Logging
- *
  * Using pino for namespace logging and different formats to different transports.
- * https://getpino.io
  */
-
+Object.defineProperty(exports, "__esModule", { value: true });
 const _ = require("lodash");
 const pino = require('pino');
-
 /**
  * Create a pino logger, using an optional log level and an optional destination.
  * @param level The log level (a sails.js log level).
  * @param destination An additional pino destination
- * @returns {*}
+ * @returns The pino logger
  */
 function createPinoLogger(level, destination) {
-    // TODO: Set up transports to send:
-    //       - JSON formatted logs to Grafana (at log level e.g. warn)
-    //       - Simple logs to stdout (using the provided log level)
-
-    // At the moment, all logs are sent only to stdout, in logfmt format.
-
-    // Set up a default configuration for pino.
-    // This is used in configuring the logger and for testing.
     const options = {
-        // use level labels instead of numbers
         formatters: {
             level: (label) => {
-                return {
-                    level: label
-                }
+                return { level: label };
             }
         },
-
-        // This adds more log levels to pino to match the levels expected by sails.js.
-        // Only the sails.js log levels are recognised.
         customLevels: {
-            // sails.js 'silly' is 'more verbose' than pino 'trace'
             silly: 5,
-
-            // sails.js 'verbose' is pino 'trace'
             verbose: 9,
-
-            // trace: 10, // pino only
-            // debug: 20, // sails.js & pino
-
-            // 'log' is 'info'
             log: 29,
-
-            // info: 30, // sails.js & pino
-            // warn: 40, // sails.js & pino
-            // error: 50, // sails.js & pino
-
-            // sails.js 'crit' is pino 'fatal'
             crit: 59,
-
-            // fatal: 60, // pino
-
-            // sails.js 'blank' is pino 'silent'
-            // TODO: _.noop cannot be cloned by pino-logfmt
-            // blank: _.noop,
-
-            // pino 'silent' is also a no-op
         },
-        // Set the pino log level. This must be kept in sync with the sails log level.
-        // Initially set to 'verbose', then set to the sails.log.level in bootstrap.js.
         level: level ?? 'verbose',
         hooks: {
             logMethod(inputArgs, method, level) {
-                // See: https://getpino.io/#/docs/api?id=hooks-object
-                // Cater for the existing usages of the log methods in sails, so everything is included in the log output
-                // console.log('translateSailsToPino', arguments);
                 if (inputArgs.length === 1) {
-                    // A message string can optionally be supplied as the first parameter
-                    // An object can optionally be supplied as the first parameter.
                     return method.apply(this, inputArgs);
-                } else if (inputArgs.length >= 2 && _.isString(inputArgs[0]) && !_.isString(inputArgs[1])) {
-                    // A message string can optionally be supplied as the second parameter after supplying a mergingObject.
+                }
+                else if (inputArgs.length >= 2 && _.isString(inputArgs[0]) && !_.isString(inputArgs[1])) {
                     const arg1 = inputArgs.shift();
                     const arg2 = inputArgs.shift();
                     return method.apply(this, [arg2, arg1, ...inputArgs]);
-                } else if (inputArgs.length > 1 && _.isString(inputArgs[0])) {
-                    // If the first argument is a string, assume it is the message, and put the rest of the arguments into the object.
+                }
+                else if (inputArgs.length > 1 && _.isString(inputArgs[0])) {
                     const arg1 = inputArgs.shift();
                     const arg2 = inputArgs.shift();
                     return method.apply(this, [arg2, arg1, ...inputArgs]);
-                } else {
-                    // Ensure all the arguments are logged
+                }
+                else {
                     return method.apply(this, inputArgs);
                 }
             }
         }
     };
-
     if (destination) {
         return pino(options, destination);
-    } else {
-        // Use the logfmt format instead of the default JSON format.
+    }
+    else {
         options.transport = {
             target: "pino-logfmt",
             options: {
@@ -114,7 +65,6 @@ function createPinoLogger(level, destination) {
         return pino(options);
     }
 }
-
 /**
  * Create a namespaced logger using the pino 'childlogger' feature.
  * @param name The name for the namespace.
@@ -124,89 +74,45 @@ function createPinoLogger(level, destination) {
  * @returns The new namespaced logger.
  */
 function createNamespaceLogger(name, parentLogger, prefix, level) {
-    // Refs:
-    // https://getpino.io/#/docs/api?id=child
-    // https://getpino.io/#/docs/child-loggers
-    // https://github.com/pinojs/pino/issues/1886
-
-    // if (!parentLogger && typeof sails !== undefined) {
-    //     parentLogger = sails.log;
-    // }
     if (!name) {
         throw new Error(`Must provide a logger name.`);
     }
-
-
     let calcLevel = level ?? null;
-    // console.log(`CalcLevel initial ${calcLevel}`);
     if (!calcLevel && typeof sails !== undefined) {
-        // console.log(`sails is available`);
         calcLevel = sails.config.lognamespace[name] ?? calcLevel;
-        // console.log(`CalcLevel after sails lognamespace ${calcLevel}`);
     }
-
-    const bindings = {name: name};
+    const bindings = { name: name };
     const options = {};
-
-    // Set any customisations.
     if (calcLevel !== null) {
         options['level'] = calcLevel;
     }
     if (prefix) {
         options['msgPrefix'] = prefix;
     }
-
-    // console.log(`newLogger bindings ${JSON.stringify(bindings)} options ${JSON.stringify(options)}`);
     const newLogger = parentLogger.child(bindings, options);
-
-    // // for debugging:
-    // // Helper function to check the type of the item.
-    // function checkType(item) {
-    //     // see: https://github.com/balderdashy/captains-log/blob/28fb8e0ce903e23d2eabf881bc4020223847ac54/index.js#L57
-    //     return {
-    //         'obj': item,
-    //         'toString.call': Object.prototype.toString.call(item),
-    //         'typeof': typeof item,
-    //         'isObject': _.isObject(item),
-    //         'isFunction': _.isFunction(item.log),
-    //     };
-    // }
-    // console.log(`createNamespaceLogger result`, JSON.stringify({
-    //     bindings: bindings,
-    //     options: options,
-    //     checkType: checkType(newLogger)
-    // }));
-
     return newLogger;
 }
-
 const customLogger = createPinoLogger();
-
-module.exports.log = {
-    // Wrap the pino logger so it passes the sails.js 'valid custom logger' check.
-    // Include the additional pino levels so that any log calls within pino work.
+const logConfig = {
     custom: {
-        silly: function silly() { customLogger.silly(...arguments)},
-        verbose: function verbose() { customLogger.verbose(...arguments)},
-        trace: function trace() { customLogger.trace(...arguments)},
-        debug: function debug() { customLogger.debug(...arguments)},
-        log: function log() { customLogger.log(...arguments)},
-        info: function info() { customLogger.info(...arguments)},
-        warn: function warn() { customLogger.warn(...arguments)},
-        error: function error() { customLogger.error(...arguments)},
-        crit: function crit() { customLogger.crit(...arguments)},
-        fatal: function fatal() { customLogger.fatal(...arguments)},
-        silent: function silent() { customLogger.silent(...arguments)},
-        blank: function blank() { customLogger.silent(...arguments)},
+        silly: function silly() { customLogger.silly(...arguments); },
+        verbose: function verbose() { customLogger.verbose(...arguments); },
+        trace: function trace() { customLogger.trace(...arguments); },
+        debug: function debug() { customLogger.debug(...arguments); },
+        log: function log() { customLogger.log(...arguments); },
+        info: function info() { customLogger.info(...arguments); },
+        warn: function warn() { customLogger.warn(...arguments); },
+        error: function error() { customLogger.error(...arguments); },
+        crit: function crit() { customLogger.crit(...arguments); },
+        fatal: function fatal() { customLogger.fatal(...arguments); },
+        silent: function silent() { customLogger.silent(...arguments); },
+        blank: function blank() { customLogger.silent(...arguments); },
     },
-    // Turn off the sails captains-log inspection.
     inspect: false,
-    // Set a sails default log level.
     level: 'verbose',
-    // Store the custom logger so it can be accessed.
     customLogger: customLogger,
-    // Provide custom function to create a namespaced ('child') pino logger.
     createNamespaceLogger: createNamespaceLogger,
-    // Provide custom function to create a top-level pino logger.
     createPinoLogger: createPinoLogger,
 };
+module.exports.log = logConfig;
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoibG9nLmpzIiwic291cmNlUm9vdCI6IiIsInNvdXJjZXMiOlsiLi4vaW50ZXJuYWwvc2FpbHMtdHMvY29uZmlnL2xvZy50cyJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiO0FBQUE7Ozs7OztHQU1HOztBQUVILE1BQU0sQ0FBQyxHQUFHLE9BQU8sQ0FBQyxRQUFRLENBQUMsQ0FBQztBQUM1QixNQUFNLElBQUksR0FBRyxPQUFPLENBQUMsTUFBTSxDQUFDLENBQUM7QUFJN0I7Ozs7O0dBS0c7QUFDSCxTQUFTLGdCQUFnQixDQUFDLEtBQWMsRUFBRSxXQUFpQjtJQUN6RCxNQUFNLE9BQU8sR0FBUTtRQUNuQixVQUFVLEVBQUU7WUFDVixLQUFLLEVBQUUsQ0FBQyxLQUFhLEVBQUUsRUFBRTtnQkFDdkIsT0FBTyxFQUFFLEtBQUssRUFBRSxLQUFLLEVBQUUsQ0FBQztZQUMxQixDQUFDO1NBQ0Y7UUFDRCxZQUFZLEVBQUU7WUFDWixLQUFLLEVBQUUsQ0FBQztZQUNSLE9BQU8sRUFBRSxDQUFDO1lBQ1YsR0FBRyxFQUFFLEVBQUU7WUFDUCxJQUFJLEVBQUUsRUFBRTtTQUNUO1FBQ0QsS0FBSyxFQUFFLEtBQUssSUFBSSxTQUFTO1FBQ3pCLEtBQUssRUFBRTtZQUNMLFNBQVMsQ0FBQyxTQUFnQixFQUFFLE1BQWdCLEVBQUUsS0FBYTtnQkFDekQsSUFBSSxTQUFTLENBQUMsTUFBTSxLQUFLLENBQUMsRUFBRSxDQUFDO29CQUMzQixPQUFPLE1BQU0sQ0FBQyxLQUFLLENBQUMsSUFBSSxFQUFFLFNBQVMsQ0FBQyxDQUFDO2dCQUN2QyxDQUFDO3FCQUFNLElBQUksU0FBUyxDQUFDLE1BQU0sSUFBSSxDQUFDLElBQUksQ0FBQyxDQUFDLFFBQVEsQ0FBQyxTQUFTLENBQUMsQ0FBQyxDQUFDLENBQUMsSUFBSSxDQUFDLENBQUMsQ0FBQyxRQUFRLENBQUMsU0FBUyxDQUFDLENBQUMsQ0FBQyxDQUFDLEVBQUUsQ0FBQztvQkFDMUYsTUFBTSxJQUFJLEdBQUcsU0FBUyxDQUFDLEtBQUss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

@@ -1,14 +1,28 @@
+const BaseConfigModels = require('@researchdatabox/redbox-core-types').ConfigModels;
+const baseConfigModelsMap = new Map(BaseConfigModels.modelsMap);
+
 describe('appConfigService', function () {
   let appConfigService;
   let originalBrandingAppConfigMap;
+  let originalConfigModelsMap;
+  let originalModelSchemaMap;
+  let originalExtraTsGlobs;
   let testStartTime;
   let ConfigModels;
 
   beforeEach(() => {
     appConfigService = sails.services.appconfigservice;
-    ConfigModels = sails.config.configmodels || require('../../../../api/configmodels/ConfigModels').ConfigModels;
+    ConfigModels = BaseConfigModels;
+    ConfigModels.modelsMap = new Map(baseConfigModelsMap);
+    ConfigModels.TEST_ID = '12345';
+    originalConfigModelsMap = new Map(ConfigModels.modelsMap);
     // Save original state
     originalBrandingAppConfigMap = appConfigService.brandingAppConfigMap;
+    const appConfigServiceAny = appConfigService as any;
+    originalModelSchemaMap = appConfigServiceAny.modelSchemaMap;
+    originalExtraTsGlobs = appConfigServiceAny.extraTsGlobs;
+    appConfigServiceAny.modelSchemaMap = {};
+    appConfigServiceAny.extraTsGlobs = new Set();
     // Generate unique suffix for test models to avoid conflicts
     testStartTime = Date.now();
   });
@@ -17,6 +31,18 @@ describe('appConfigService', function () {
     // Restore original state to prevent test interference
     if (originalBrandingAppConfigMap !== undefined) {
       appConfigService.brandingAppConfigMap = originalBrandingAppConfigMap;
+    }
+    if (originalConfigModelsMap !== undefined) {
+      ConfigModels.modelsMap = new Map(originalConfigModelsMap);
+    } else {
+      ConfigModels.modelsMap = new Map(baseConfigModelsMap);
+    }
+    const appConfigServiceAny = appConfigService as any;
+    if (originalModelSchemaMap !== undefined) {
+      appConfigServiceAny.modelSchemaMap = originalModelSchemaMap;
+    }
+    if (originalExtraTsGlobs !== undefined) {
+      appConfigServiceAny.extraTsGlobs = originalExtraTsGlobs;
     }
   });
 
@@ -273,8 +299,9 @@ describe('appConfigService', function () {
 
   it('should handle initAllConfigFormSchemas with prebuilt schemas', async () => {
     // Create a mock to avoid processing models from other tests
-    const originalGetConfigKeys = ConfigModels.getConfigKeys;
-    const originalGetModelInfo = ConfigModels.getModelInfo;
+    const originalModelsMap = new Map(ConfigModels.modelsMap);
+    const ApiConfigModels = require('../../../../api/configmodels/ConfigModels').ConfigModels;
+    const originalApiModelsMap = new Map(ApiConfigModels.modelsMap);
     
     const mockClass = class TestModelWithPrebuiltSchema {
       [key: string]: any;
@@ -300,13 +327,12 @@ describe('appConfigService', function () {
     };
 
     // Mock ConfigModels to only return our test model
-    ConfigModels.getConfigKeys = () => ['testPrebuiltSchemaOnly'];
-    ConfigModels.getModelInfo = (key) => {
-      if (key === 'testPrebuiltSchemaOnly') {
-        return testModelInfo;
-      }
-      return undefined;
-    };
+    ConfigModels.modelsMap = new Map([
+      ['testPrebuiltSchemaOnly', testModelInfo]
+    ]);
+    ApiConfigModels.modelsMap = new Map([
+      ['testPrebuiltSchemaOnly', testModelInfo]
+    ]);
 
     // Call initAllConfigFormSchemas - this should not fail with prebuilt schemas
     try {
@@ -317,9 +343,9 @@ describe('appConfigService', function () {
       // Should not throw an error
       expect.fail(`initAllConfigFormSchemas should not throw: ${error.message}`);
     } finally {
-      // Restore original methods
-      ConfigModels.getConfigKeys = originalGetConfigKeys;
-      ConfigModels.getModelInfo = originalGetModelInfo;
+      // Restore original registry
+      ConfigModels.modelsMap = new Map(originalModelsMap);
+      ApiConfigModels.modelsMap = new Map(originalApiModelsMap);
     }
   });
 

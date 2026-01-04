@@ -1,4 +1,6 @@
-export interface FormModel {
+import { FormConfigFrame } from '@researchdatabox/sails-ng-common';
+
+export interface FormModel extends FormConfigFrame {
     name: string;
     customAngularApp: FormCustomAngularApp;
     fields: {
