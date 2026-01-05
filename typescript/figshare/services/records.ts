@@ -18,6 +18,7 @@
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 import { Context, Effect, Layer } from 'effect';
+import { cloneDeep, get, set } from 'lodash';
 
 /**
  * Record metadata object
@@ -26,6 +27,25 @@ export interface RecordMetadata {
   readonly redboxOid: string;
   readonly [key: string]: any;
 }
+
+/**
+ * Helper to get value from path using lodash get
+ */
+const getPathImpl = <T>(record: RecordMetadata, path: string): T | undefined => {
+  return get(record, path);
+};
+
+/**
+ * Helper to set value at path using structural sharing (immutable update)
+ */
+const setPathImpl = <T>(record: RecordMetadata, path: string, value: T): RecordMetadata => {
+  // We use cloneDeep to ensure we don't mutate the original record (immutability).
+      // Note: cloneDeep is expensive and could be a performance bottleneck if this code
+      // is subject to high concurrency. In that case, consider switching to structural sharing
+      // or an immutable library.
+      const newRecord = cloneDeep(record);
+      return set(newRecord, path, value);
+};
 
 /**
  * Service interface for Records operations (abstraction over Sails RecordsService)
@@ -90,42 +110,13 @@ export const makeRecordsServiceLive = (
           new Error(`Failed to update record metadata for ${oid}: ${error}`)
       }),
 
-    getPath: <T>(record: RecordMetadata, path: string): T | undefined => {
-      // Simple path resolution (for lodash _.get replacement)
-      const parts = path.split('.');
-      let current: any = record;
-      for (const part of parts) {
-        if (current === undefined || current === null) {
-          return undefined;
-        }
-        current = current[part];
-      }
-      return current as T;
-    },
+    getPath: <T>(record: RecordMetadata, path: string): T | undefined => getPathImpl(record, path),
 
     setPath: <T>(
       record: RecordMetadata,
       path: string,
       value: T
-    ): RecordMetadata => {
-      // Simple path setting (for lodash _.set replacement)
-      const parts = path.split('.');
-      const result = { ...record };
-      let current: any = result;
-
-      for (let i = 0; i < parts.length - 1; i++) {
-        const part = parts[i];
-        if (!(part in current) || typeof current[part] !== 'object') {
-          current[part] = {};
-        } else {
-          current[part] = { ...current[part] };
-        }
-        current = current[part];
-      }
-
-      current[parts[parts.length - 1]] = value;
-      return result;
-    }
+    ): RecordMetadata => setPathImpl(record, path, value)
   });
 };
 
@@ -151,40 +142,14 @@ export const makeRecordsServiceTest = (
       return Effect.succeed(record);
     },
 
-    getPath: <T>(record: RecordMetadata, path: string): T | undefined => {
-      const parts = path.split('.');
-      let current: any = record;
-      for (const part of parts) {
-        if (current === undefined || current === null) {
-          return undefined;
-        }
-        current = current[part];
-      }
-      return current as T;
-    },
+    getPath: <T>(record: RecordMetadata, path: string): T | undefined => getPathImpl(record, path),
 
     setPath: <T>(
       record: RecordMetadata,
       path: string,
       value: T
-    ): RecordMetadata => {
-      const parts = path.split('.');
-      const result = { ...record };
-      let current: any = result;
+    ): RecordMetadata => setPathImpl(record, path, value)
 
-      for (let i = 0; i < parts.length - 1; i++) {
-        const part = parts[i];
-        if (!(part in current) || typeof current[part] !== 'object') {
-          current[part] = {};
-        } else {
-          current[part] = { ...current[part] };
-        }
-        current = current[part];
-      }
-
-      current[parts[parts.length - 1]] = value;
-      return result;
-    }
   });
 };
 
