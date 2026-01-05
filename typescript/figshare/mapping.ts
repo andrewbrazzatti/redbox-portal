@@ -243,7 +243,7 @@ export const buildCreateRequestBody = (
   // Set categories
   const runtimeArtifacts: Record<string, any> = { categories: categoryIds };
   requestBody = setFieldByName(
-    record, requestBody, mapping.standardFields.update,
+    record, requestBody, mapping.standardFields.create,
     'categories', runtimeArtifacts, mapping.artifacts, templateEngine, momentLib
   );
 
@@ -492,7 +492,8 @@ export const checkEmbargoDetailsChanged = (
     const requestValue = getNestedValue(requestEmbargoBody, fieldConfig.figName);
     const articleValue = getNestedValue(articleDetails, fieldConfig.figName);
 
-    if (requestValue !== articleValue) {
+    // Use JSON serialization for deep comparison (works for primitives and simple objects)
+    if (JSON.stringify(requestValue) !== JSON.stringify(articleValue)) {
       return true;
     }
   }
