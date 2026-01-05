@@ -216,3 +216,5 @@ docs/
 test/unit/**/*.test.js
 
 test/unit/.mocharc.js
+
+figshare/**/*.js

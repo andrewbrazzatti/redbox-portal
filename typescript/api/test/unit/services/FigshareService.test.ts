@@ -69,7 +69,6 @@ const axiosStub = (config) => {
   }
   return Promise.resolve(next);
 };
-(require as any).cache[require.resolve('axios')] = { exports: axiosStub as any };
 
 const { Services } = require('../../../services/FigshareService');
 const FigshareService = Services.FigshareService;
@@ -89,6 +88,8 @@ describe('FigshareService - getArticleFileList pagination', () => {
     axiosResponses = [];
     (global as any).sails.config = JSON.parse(JSON.stringify(baseConfig));
     service = new FigshareService();
+    // Inject mock axios instance
+    (service as any).axiosInstance = axiosStub;
     (global as any).sails.config.figshareAPI.mapping.upload.fileListPageSize = 2;
   });
 
@@ -186,6 +187,8 @@ describe('FigshareService - runtime config + retries', () => {
     axiosResponses = [];
     (global as any).sails.config = JSON.parse(JSON.stringify(baseConfig));
     service = new FigshareService();
+    // Inject mock axios instance
+    (service as any).axiosInstance = axiosStub;
   });
 
   it('uses override artifacts and normalizes record URL paths', () => {

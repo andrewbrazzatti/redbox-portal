@@ -337,6 +337,8 @@ export interface MockError {
   };
 }
 
+let recordedCalls: AxiosConfig[] = [];
+
 /**
  * Create a test FigshareClient layer with mock responses
  */
@@ -344,7 +346,8 @@ export const makeFigshareClientTest = (
   responses: Array<MockResponse | MockError | Error>
 ): Layer.Layer<FigshareClient> => {
   let responseIndex = 0;
-  const calls: AxiosConfig[] = [];
+  // Reset recorded calls
+  recordedCalls = [];
 
   return Layer.succeed(
     FigshareClient,
@@ -355,7 +358,7 @@ export const makeFigshareClientTest = (
           url: path,
           headers: { 'Content-Type': 'application/json', Authorization: 'REDACTED' }
         };
-        calls.push(config);
+        recordedCalls.push(config);
         return getNextResponse<T>();
       },
 
@@ -366,7 +369,7 @@ export const makeFigshareClientTest = (
           headers: { 'Content-Type': 'application/json', Authorization: 'REDACTED' },
           data: body
         };
-        calls.push(config);
+        recordedCalls.push(config);
         return getNextResponse<T>();
       },
 
@@ -377,7 +380,7 @@ export const makeFigshareClientTest = (
           headers: { 'Content-Type': 'application/json', Authorization: 'REDACTED' },
           data: body
         };
-        calls.push(config);
+        recordedCalls.push(config);
         return getNextResponse<T>();
       },
 
@@ -387,7 +390,7 @@ export const makeFigshareClientTest = (
           url: path,
           headers: { 'Content-Type': 'application/json', Authorization: 'REDACTED' }
         };
-        calls.push(config);
+        recordedCalls.push(config);
         return getNextResponse<void>();
       },
 
@@ -402,12 +405,12 @@ export const makeFigshareClientTest = (
           url,
           headers: { 'Content-Type': contentType ?? 'application/octet-stream' }
         };
-        calls.push(config);
+        recordedCalls.push(config);
         return getNextResponse<void>();
       },
 
       request: <T>(config: AxiosConfig, options?: FigshareRequestOptions) => {
-        calls.push(config);
+        recordedCalls.push(config);
         return getNextResponse<T>();
       }
     }
@@ -441,7 +444,5 @@ export const makeFigshareClientTest = (
  * Helper to get the recorded calls from a test client
  */
 export const getTestClientCalls = (): AxiosConfig[] => {
-  // This would need to be implemented with a ref or similar
-  // For now, users should track calls in their test setup
-  return [];
+  return recordedCalls;
 };

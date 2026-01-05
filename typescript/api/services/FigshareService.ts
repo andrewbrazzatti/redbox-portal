@@ -28,6 +28,7 @@ import {
   FigshareArticleEmbargo,
   ListAPIResponse
 } from '@researchdatabox/redbox-core-types';
+
 import { Sails } from "sails";
 import { Duration, Effect } from 'effect';
 import moment from '../shims/momentShim';
@@ -102,17 +103,20 @@ type FigshareRequestOptions = {
   logResponse?: boolean;
 };
 
-const DEFAULT_RETRY_STATUS_CODES = [408, 429, 500, 502, 503, 504];
-let figshareLicenseCache: any | null = null;
-let figshareLicenseEffect: any | null = null;
-
-
-export module Services {
+// export namespace Services {
 
   export class FigshareService extends services.Core.Service {
 
     private datastreamService: DatastreamService;
     private queueService: QueueService;
+
+    // Cache for private licenses to prevent redundant API calls
+    private licenseCache: any | null = null;
+    // Semaphore to prevent race conditions during license fetching
+    private licenseSemaphore = Effect.runSync(Effect.makeSemaphore(1));
+
+    // Axios instance for HTTP requests, exposed for testing/mocking
+    protected axiosInstance = axios;
 
     protected _exportedMethods: any = [
       'createUpdateFigshareArticle',
@@ -150,7 +154,7 @@ export module Services {
         const runtimeConfig = that.getRuntimeConfig();
         if(that.isFigshareAPIEnabled(runtimeConfig)) {
           sails.log.verbose('FigService - constructor start');
-          that.getFigPrivateLicenses(runtimeConfig)
+          that.runEffectPromise(that.getFigPrivateLicenses(runtimeConfig))
             .then(function () {
               sails.log.verbose('FigService - SUCCESSFULY LOADED LICENSES');
             })
@@ -291,7 +295,7 @@ export module Services {
       const label = options.label || `${(axiosConfig?.method || 'get').toUpperCase()} ${axiosConfig?.url || ''}`.trim();
       
       const makeRequest = Effect.tryPromise({
-        try: () => axios(axiosConfig),
+        try: () => this.axiosInstance(axiosConfig),
         catch: (error) => error
       });
       
@@ -761,41 +765,33 @@ export module Services {
     }
 
     private getFigPrivateLicenses(config: FigshareRuntimeConfig) {
-      if(figshareLicenseCache) {
-        return Effect.succeed(figshareLicenseCache);
-      }
-      if(figshareLicenseEffect) {
-        return figshareLicenseEffect;
-      }
+      return Effect.gen(function* () {
+        if (this.licenseCache) {
+          return this.licenseCache;
+        }
 
-      const requestConfig = this.getAxiosConfig(config, 'get','/account/licenses', null);
+        const requestConfig = this.getAxiosConfig(config, 'get', '/account/licenses', null);
 
-      if(config.extraVerboseLogging) {
-        this.logWithLevel(config.logLevel, `FigService - getFigPrivateLicenses - ${requestConfig.method} - ${requestConfig.url}`);
-        this.logWithLevel(config.logLevel, `FigService - getFigPrivateLicenses - config ${JSON.stringify(this.redactAxiosConfig(requestConfig))}`);
-      }
+        if (config.extraVerboseLogging) {
+          this.logWithLevel(config.logLevel, `FigService - getFigPrivateLicenses - ${requestConfig.method} - ${requestConfig.url}`);
+          this.logWithLevel(config.logLevel, `FigService - getFigPrivateLicenses - config ${JSON.stringify(this.redactAxiosConfig(requestConfig))}`);
+        }
 
-      figshareLicenseEffect = Effect.gen(function* () {
-        try {
-          const response = yield* this.requestWithRetry(config, requestConfig, { label: 'getFigPrivateLicenses', logResponse: true });
-          figshareLicenseCache = response.data;
-          return figshareLicenseCache;
-        } catch (error) {
-          if(!_.isEmpty(sails.config.figshareAPI.testLicenses)) {
-            figshareLicenseCache = sails.config.figshareAPI.testLicenses;
-            return figshareLicenseCache;
+        const response = yield* this.requestWithRetry(config, requestConfig, { label: 'getFigPrivateLicenses', logResponse: true });
+        this.licenseCache = response.data;
+        return this.licenseCache;
+      }.bind(this)).pipe(
+        Effect.catchAll((error) => Effect.sync(() => {
+          if (!_.isEmpty(sails.config.figshareAPI.testLicenses)) {
+            this.licenseCache = sails.config.figshareAPI.testLicenses;
+            return this.licenseCache;
           }
           this.logWithLevel('error', error);
-          figshareLicenseCache = null;
+          // Do not cache null on error so we can retry later
           return null;
-        }
-      }.bind(this)).pipe(
-        Effect.ensuring(Effect.sync(() => {
-          figshareLicenseEffect = null;
-        }))
+        })),
+        this.licenseSemaphore.withPermits(1)
       );
-
-      return figshareLicenseEffect;
     }
 
     private getArticleDetails(config: FigshareRuntimeConfig, articleId:string) {
@@ -2088,7 +2084,11 @@ export module Services {
                     totalParts
                   }
                 }),
-                Effect.orDie
+                Effect.tapError((err) =>
+                  Effect.logError(
+                    `FigService - processFilePartUploadToFigshare - uploadParts failed: articleId=${articleId}, fileName=${fileName}, totalParts=${totalParts}, error=${this.describeAxiosError(err)}`
+                  )
+                )
               );
 
               yield* uploadPartsEffect;
@@ -2484,6 +2484,7 @@ export module Services {
     }
 
   }
-}
+  // }
+export const Services = { FigshareService };
 module.exports = new Services.FigshareService().exports();
 module.exports.Services = Services;
