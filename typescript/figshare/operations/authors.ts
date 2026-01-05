@@ -190,11 +190,12 @@ export const searchAuthor = (
         retry: { retryOnMethods: ['post'] }
       }
     ).pipe(
-      Effect.catchAll((error) => {
-        // Log but don't fail - we'll fall back to name-only author
-        Effect.logWarning(`Author search failed: ${error.message}`);
-        return Effect.succeed({ status: 200, statusText: 'OK', data: [] });
-      })
+      Effect.catchAll((error) =>
+        Effect.flatMap(
+          Effect.logWarning(`Author search failed: ${error.message}`),
+          () => Effect.succeed({ status: 200, statusText: 'OK', data: [] })
+        )
+      )
     );
 
     const authorData = response.data;
@@ -207,7 +208,12 @@ export const searchAuthor = (
       return Option.none();
     }
 
-    return Option.some({ id: Number(userId) });
+    const id = Number(userId);
+    if (!Number.isFinite(id)) {
+      return Option.none();
+    }
+
+    return Option.some({ id });
   }).pipe(
     Effect.withSpan('figshare.searchAuthor')
   );
@@ -287,8 +293,14 @@ export const getAuthorUserIDs = (
     // Add unmatched contributors by name
     for (const contributor of unmatchedContributors) {
       const name = contributor[externalNameField];
-      if (name) {
-        matchedAuthors.push({ name: String(name) });
+      
+      if (typeof name !== 'string' && typeof name !== 'number' && typeof name !== 'boolean') {
+        continue;
+      }
+
+      const nameStr = String(name).trim();
+      if (nameStr) {
+        matchedAuthors.push({ name: nameStr });
       }
     }
 
