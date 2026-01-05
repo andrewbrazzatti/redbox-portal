@@ -1,4 +1,5 @@
 const { describe, it, beforeEach, before } = require('mocha');
+const { Effect } = require('effect');
 
 // Minimal sails stub required by FigshareService
 const baseConfig = {
@@ -98,7 +99,7 @@ describe('FigshareService - getArticleFileList pagination', () => {
     ];
 
     const config = (service as any).getRuntimeConfig();
-    const files = await (service as any).getArticleFileList(config, '123');
+    const files = await Effect.runPromise((service as any).getArticleFileList(config, '123'));
 
     expect(files.map((f) => f.id)).to.deep.equal([1, 2, 3]);
     expect(axiosCalls).to.have.length(2);
@@ -115,7 +116,7 @@ describe('FigshareService - getArticleFileList pagination', () => {
     ];
 
     const config = (service as any).getRuntimeConfig();
-    const files = await (service as any).getArticleFileList(config, 'abc');
+    const files = await Effect.runPromise((service as any).getArticleFileList(config, 'abc'));
 
     expect(files.map((f) => f.id)).to.deep.equal(['a']);
     expect(axiosCalls).to.have.length(1);
@@ -128,7 +129,7 @@ describe('FigshareService - getArticleFileList pagination', () => {
     ];
 
     const config = (service as any).getRuntimeConfig();
-    const files = await (service as any).getArticleFileList(config, 'empty');
+    const files = await Effect.runPromise((service as any).getArticleFileList(config, 'empty'));
 
     expect(files).to.deep.equal([]);
     expect(axiosCalls).to.have.length(1);
@@ -155,7 +156,7 @@ describe('FigshareService - isFileUploadInProgress', () => {
     const mockFileList = [{ id: 1, status: 'available' }, { id: 2, status: 'created' }];
 
     const config = (service as any).getRuntimeConfig();
-    const inProgress = await (service as any).isFileUploadInProgress(config, 'article-1', mockFileList);
+    const inProgress = await Effect.runPromise((service as any).isFileUploadInProgress(config, 'article-1', mockFileList));
 
     expect(inProgress).to.equal(true);
   });
@@ -164,7 +165,7 @@ describe('FigshareService - isFileUploadInProgress', () => {
     const mockFileList = [{ id: 1, status: 'available' }];
 
     const config = (service as any).getRuntimeConfig();
-    const inProgress = await (service as any).isFileUploadInProgress(config, 'article-2', mockFileList);
+    const inProgress = await Effect.runPromise((service as any).isFileUploadInProgress(config, 'article-2', mockFileList));
 
     expect(inProgress).to.equal(false);
   });
@@ -210,11 +211,11 @@ describe('FigshareService - runtime config + retries', () => {
       { status: 200, statusText: 'OK', data: { ok: true } }
     ];
 
-    const response = await (service as any).requestWithRetry(
+    const response = await Effect.runPromise((service as any).requestWithRetry(
       config,
       { method: 'get', url: 'https://example.test' },
       { retry: { maxAttempts: 2, baseDelayMs: 1, maxDelayMs: 1 } }
-    );
+    ));
 
     expect(response.status).to.equal(200);
     expect(axiosCalls).to.have.length(2);
@@ -232,11 +233,11 @@ describe('FigshareService - runtime config + retries', () => {
 
     let caught = false;
     try {
-      await (service as any).requestWithRetry(
+      await Effect.runPromise((service as any).requestWithRetry(
         config,
         { method: 'get', url: 'https://example.test' },
         { retry: { maxAttempts: 3, baseDelayMs: 1, maxDelayMs: 1 } }
-      );
+      ));
     } catch (err) {
       caught = true;
     }
