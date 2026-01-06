@@ -223,6 +223,18 @@ describe('Figshare Module - Config', () => {
       expect(result.maxAttempts).to.equal(1);
       expect(result.baseDelayMs).to.equal(0);
     });
+
+    it('should respect zero values', () => {
+      const result = config.parseRetryConfig({
+        maxAttempts: 0,
+        baseDelayMs: 0,
+        maxDelayMs: 0
+      });
+
+      expect(result.maxAttempts).to.equal(1);
+      expect(result.baseDelayMs).to.equal(0);
+      expect(result.maxDelayMs).to.equal(0);
+    });
   });
 
   describe('parseRuntimeConfig', () => {

@@ -135,10 +135,12 @@ export const downloadToTempFile = (
       });
 
       readable.on('error', (error) => {
+        writeStream.destroy();
         resume(Effect.fail(new Error(`Download failed: ${error.message}`)));
       });
 
       writeStream.on('error', (error) => {
+        readable.destroy();
         resume(Effect.fail(new Error(`Write failed: ${error.message}`)));
       });
 
@@ -181,7 +183,14 @@ export const getUploadInfo = (
     const client = yield* FigshareClient;
     
     // The upload location is a full URL, we need to extract just the path
-    const url = new URL(uploadLocation);
+    const url = yield* Effect.try({
+      try: () => new URL(uploadLocation),
+      catch: (error) => new FigshareNetworkError({
+        message: `Invalid upload location URL: ${uploadLocation}`,
+        cause: error,
+        retryable: false
+      })
+    });
     const response = yield* client.get<UploadInfoResponse>(
       url.pathname,
       { label: 'getUploadInfo' }
