@@ -213,9 +213,9 @@ export const defaultMappingConfig: FigshareMappingConfig = {
  * Parse retry configuration from raw config object
  */
 export const parseRetryConfig = (rawConfig: any = {}): FigshareRetryConfig => {
-  const maxAttempts = Math.max(1, Number(rawConfig.maxAttempts) || defaultRetryConfig.maxAttempts);
-  const baseDelayMs = Math.max(0, Number(rawConfig.baseDelayMs) || defaultRetryConfig.baseDelayMs);
-  const maxDelayMs = Math.max(baseDelayMs, Number(rawConfig.maxDelayMs) || defaultRetryConfig.maxDelayMs);
+  const maxAttempts = Math.max(1, Number(rawConfig.maxAttempts ?? defaultRetryConfig.maxAttempts));
+  const baseDelayMs = Math.max(0, Number(rawConfig.baseDelayMs ?? defaultRetryConfig.baseDelayMs));
+  const maxDelayMs = Math.max(baseDelayMs, Number(rawConfig.maxDelayMs ?? defaultRetryConfig.maxDelayMs));
   const retryOnStatusCodes = Array.isArray(rawConfig.retryOnStatusCodes)
     ? rawConfig.retryOnStatusCodes
     : defaultRetryConfig.retryOnStatusCodes;
@@ -363,11 +363,12 @@ export const isApiEnabled = (config: FigshareRuntimeConfig): boolean => {
  * Create FigshareConfigLive Layer that reads from sails.config
  */
 export const makeFigshareConfigLive = (sailsConfig: any): Layer.Layer<FigshareConfig> => {
+  const config = parseRuntimeConfig(sailsConfig);
   return Layer.succeed(
     FigshareConfig,
     {
-      config: parseRuntimeConfig(sailsConfig),
-      isEnabled: isApiEnabled(parseRuntimeConfig(sailsConfig))
+      config,
+      isEnabled: isApiEnabled(config)
     }
   );
 };
