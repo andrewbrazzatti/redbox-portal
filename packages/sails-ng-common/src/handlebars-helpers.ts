@@ -27,6 +27,32 @@ import {
 } from 'lodash';
 
 /**
+ * Marked is an ESM module so cannot be imported synchronously in a CommonJS context. 
+ * We use dynamic import to load it when needed, and cache the parser function for future use. If the module cannot be loaded, the markdownToHtml helper will simply return the input string unmodified.
+ */
+let cachedMarkedParser: ((value: string) => string) | null | undefined;
+
+void import('marked')
+    .then((markedModule) => {
+        const parseFn = markedModule?.marked?.parse ?? markedModule?.parse;
+        if (typeof parseFn === 'function') {
+            cachedMarkedParser = (value: string): string => {
+                const result = parseFn(value);
+                return typeof result === 'string' ? result : value;
+            };
+            return;
+        }
+        cachedMarkedParser = null;
+    })
+    .catch(() => {
+        cachedMarkedParser = null;
+    });
+
+function resolveMarkedParser(): ((value: string) => string) | null {
+    return cachedMarkedParser ?? null;
+}
+
+/**
  * Shared Handlebars helper definitions for use in both server and client contexts.
  * These helpers provide CSP-safe alternatives to lodash template expressions.
  * 
@@ -296,6 +322,43 @@ export const handlebarsHelperDefinitions = {
     },
 
     /**
+     * Return part of a string using slice semantics.
+     *
+     * @example {{substring notation 0 6}}
+     */
+    substring: function (value: unknown, start: number, end?: number): string {
+        const text = String(value ?? '');
+        const from = Number(start);
+        const to = end === undefined || end === null ? undefined : Number(end);
+        // Use slice semantics so negative offsets work (e.g. -1 for last char, -6 for trailing code).
+        // String.prototype.substring() clamps negatives to 0 and cannot express this.
+        return text.slice(Number.isNaN(from) ? 0 : from, Number.isNaN(to as number) ? undefined : to);
+    },
+
+    /**
+     * Split a string into parts, or return one part if index is provided.
+     * Supports negative index values, where -1 is the last part.
+     *
+     * @example {{split notation "/" -1}}
+     */
+    split: function (value: unknown, separator: string, index?: number): unknown {
+        const text = String(value ?? '');
+        const parts = text.split(String(separator ?? ''));
+        if (index === undefined || index === null) {
+            return parts;
+        }
+        const parsedIndex = Number(index);
+        if (Number.isNaN(parsedIndex)) {
+            return '';
+        }
+        const normalizedIndex = parsedIndex < 0 ? parts.length + parsedIndex : parsedIndex;
+        if (normalizedIndex < 0 || normalizedIndex >= parts.length) {
+            return '';
+        }
+        return parts[normalizedIndex];
+    },
+
+    /**
      * Concatenate strings.
      * Note: The last argument is the Handlebars options hash, which is removed.
      * 
@@ -314,6 +377,27 @@ export const handlebarsHelperDefinitions = {
      */
     default: function (value: unknown, defaultValue: unknown): unknown {
         return value || defaultValue;
+    },
+
+    /**
+     * Convert markdown to HTML when output format is markdown, otherwise pass HTML through.
+     * Note: This helper does not sanitize HTML output, we are currently only using it on the client side with Angular's DomSanitizer to ensure safe usage. 
+     * Do not use this helper with untrusted content in a server-side context without proper sanitization (see DOMSanitizerService as a way to sanitize the HTML on the server side).
+     *
+     * @example {{{markdownToHtml content outputFormat}}}
+     */
+    markdownToHtml: function (value: unknown, outputFormat?: string): string {
+        const input = String(value ?? '');
+        if (!input) {
+            return '';
+        }
+        if (outputFormat === 'markdown') {
+            const parser = resolveMarkedParser();
+            if (parser) {
+                return parser(input);
+            }
+        }
+        return input;
     },
 
     /**
@@ -341,8 +425,7 @@ export type HandlebarsHelperDefinitions = typeof handlebarsHelperDefinitions;
  * @param Handlebars The Handlebars instance to register helpers on
  */
 export function registerSharedHandlebarsHelpers(Handlebars: {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    registerHelper: (name: string, fn: (...args: any[]) => unknown) => void;
+    registerHelper: (name: string, fn: (...args: any[]) => any) => void;
 }): void {
     for (const [name, fn] of Object.entries(handlebarsHelperDefinitions)) {
         Handlebars.registerHelper(name, fn);

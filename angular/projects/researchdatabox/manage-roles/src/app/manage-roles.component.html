@@ -1,12 +1,12 @@
 @if (isReady) {
   <div class="col-md-offset-2 col-md-8">
-    <div class="panel panel-default">
-      <div class="panel-heading">
-        <span class="panel-title">
+    <div class="bento-card mb-4">
+      <div class="card-header bg-transparent border-bottom-0 pt-4 pb-0 px-4">
+        <span class="h4 fw-semibold mb-0 d-inline-block">
           {{ 'manage-roles-title' | i18next }}
         </span>
       </div>
-      <div class="panel-body overflow-scroll">
+      <div class="card-body p-4 overflow-scroll">
         <div class="input-group">
           <span class="input-group-addon" id="name-addon">{{ 'manage-roles-filter-name' | i18next }}</span>
           <input type="text" (keyup)="onFilterChange(null)" [(ngModel)]="searchFilter.name" class="form-control" placeholder="{{ 'manage-roles-filter-name-placeholder' | i18next }}" [attr.aria-label]="'manage-roles-filter-name' | i18next ">

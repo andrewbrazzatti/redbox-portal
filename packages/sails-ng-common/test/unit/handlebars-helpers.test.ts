@@ -146,6 +146,25 @@ describe('Shared Handlebars Helpers', function () {
         });
     });
 
+    describe('substring', function () {
+        it('should return sliced substring', function () {
+            const result = handlebarsHelperDefinitions.substring('https://linked.data.gov.au/def/anzsrc-for/2020/300101', -6);
+            expect(result).to.equal('300101');
+        });
+    });
+
+    describe('split', function () {
+        it('should return a selected segment by index', function () {
+            const result = handlebarsHelperDefinitions.split('https://linked.data.gov.au/def/anzsrc-for/2020/300101', '/', -1);
+            expect(result).to.equal('300101');
+        });
+
+        it('should return all segments when index is omitted', function () {
+            const result = handlebarsHelperDefinitions.split('a/b/c', '/');
+            expect(result).to.deep.equal(['a', 'b', 'c']);
+        });
+    });
+
     describe('default', function () {
         it('should return value if truthy', function () {
             const result = handlebarsHelperDefinitions.default('hello', 'default');
@@ -155,6 +174,24 @@ describe('Shared Handlebars Helpers', function () {
         it('should return default if value is falsy', function () {
             const result = handlebarsHelperDefinitions.default('', 'default');
             expect(result).to.equal('default');
+        });
+    });
+
+    describe('markdownToHtml', function () {
+        it('should convert markdown input when output format is markdown', function () {
+            const result = handlebarsHelperDefinitions.markdownToHtml('**bold**', 'markdown');
+            expect(result).to.contain('<strong>bold</strong>');
+        });
+
+        it('should pass html input through when output format is html', function () {
+            const html = '<p><em>hello</em></p>';
+            const result = handlebarsHelperDefinitions.markdownToHtml(html, 'html');
+            expect(result).to.equal(html);
+        });
+
+        it('should return empty string when value is nullish', function () {
+            const result = handlebarsHelperDefinitions.markdownToHtml(null, 'markdown');
+            expect(result).to.equal('');
         });
     });
 

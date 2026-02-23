@@ -1,79 +1,110 @@
 @if (isReady) {
-  <div>
-    <ng-container>
-      @for (workflowStep of workflowSteps; track workflowStep) {
-        <div>
-          <div class="d-flex flex-row">
-            @if (workflowSteps.length > 1 && (dashboardTypeSelected == 'standard' || dashboardTypeSelected == 'consolidated')) {
-              <div class="col-md-4">
-                <h2>{{ 'dashboard-heading' | i18next: {stage: workflowStep.config.workflow.stageLabel, recordTypeName: typeLabel} }}</h2>
+  <div class="container-fluid py-5">
+    <div class="row g-4 bento-grid">
+      @for (workflowStep of workflowSteps; track workflowStep; let i = $index) {
+        <div [class]="i % 3 === 0 ? 'col-12' : 'col-md-6'" class="bento-container" [style.animation-delay]="(i * 100) + 'ms'">
+          <div class="bento-card h-100">
+            <div class="card-header border-0 bg-transparent">
+              <div class="d-flex justify-content-between align-items-center">
+                <h3 class="card-title text-slate-900 m-0">
+                  @if (workflowSteps.length > 1 && (dashboardTypeSelected == 'standard' || dashboardTypeSelected == 'consolidated')) {
+                    {{ 'dashboard-heading' | i18next: {stage: workflowStep.config.workflow.stageLabel, recordTypeName: typeLabel} }}
+                  } @else {
+                    {{ 'dashboard-heading-one-step' | i18next: {recordTypeName: typeLabel} }}
+                  }
+                </h3>
+                
+                @if ((dashboardTypeSelected == 'standard' || dashboardTypeSelected == 'workspace')) {
+                  <div class="bento-controls d-flex gap-2">
+                    <div class="dropdown">
+                      <button class="btn btn-outline-slate dropdown-toggle btn-sm rounded-pill" type='button' data-bs-toggle="dropdown">
+                        {{ filterFieldName }}
+                      </button>
+                      <ul class="dropdown-menu shadow-lg border-0 rounded-4">
+                        @for (filter of getTextFilters(); track filter) {
+                          <li><a class="dropdown-item py-2 px-3" href="#" (click)="setFilterField(filter, $event)">Filter by {{ filter.name }}</a></li>
+                        }
+                        <li><hr class="dropdown-divider opacity-50"></li>
+                        <li><a class="dropdown-item py-2 px-3 text-rose-600" href="#" (click)="resetFilterAndSearch(workflowStep.config.workflow.stage, $event)">Reset</a></li>
+                      </ul>
+                    </div>
+                  </div>
+                }
               </div>
-            }
-            @if (workflowSteps.length == 1 && !hideWorkflowStepTitle && (dashboardTypeSelected == 'standard' || dashboardTypeSelected == 'consolidated')) {
-              <div class="col-md-4">
-                <h2>{{ 'dashboard-heading-one-step' | i18next: {recordTypeName: typeLabel} }}</h2>
-              </div>
-            }
-            @if ((dashboardTypeSelected == 'standard' || dashboardTypeSelected == 'workspace') && ((records[workflowStep.config.workflow.stage]?.totalItems > 0) || (records[workflowStep.config.workflow.stage]?.totalItems <= 0 && getFilterSearchDisplayed(workflowStep.config.workflow.stage)))) {
-              <div class="col-md-8">
-                <div class="d-flex flex-row mt-4">
-                  <button class="btn btn-primary dropdown-toggle" type='button' data-bs-toggle="dropdown" aria-expanded="false" >Filter by {{ filterFieldName }}</button>
-                  <ul class="dropdown-menu">
-                    @for (filter of getTextFilters(); track filter) {
-                      <li><a class="dropdown-item" href="#" (click)="setFilterField(filter, $event)">Filter by {{ filter.name }}</a></li>
-                    }
-                    <li><hr class="dropdown-divider"></li>
-                    <li><a class="dropdown-item" href="#" (click)="resetFilterAndSearch(workflowStep.config.workflow.stage, $event)">{{ 'record-search-reset' | i18next }}</a></li>
-                  </ul>
-                  <input type="text" class="form-control" [(ngModel)]="filterSearchString[workflowStep.config.workflow.stage]" placeholder="{{ 'record-search-basic-search-placeholder' | i18next}}" (keyup.enter)="filterChanged(workflowStep.config.workflow.stage)" aria-describedby="basic-search-addon" autofocus>
-                  <button class="btn btn-primary" type='button' aria-expanded="false" [disabled]="getIsSearching(workflowStep.config.workflow.stage) || getFilterSearchString(workflowStep.config.workflow.stage) == ''" (click)="filterChanged(workflowStep.config.workflow.stage)">{{ 'record-search-basic-search' | i18next }}</button>
-                </div>
-              </div>
-              <div class="col-md-4"></div>
-            }
-          </div>
-          @if (records[workflowStep.config.workflow.stage] != null) {
-            <div>
-              @if (records[workflowStep.config.workflow.stage].totalItems <= 0) {
-                <div class="padding-bottom-10" >
-                  {{ 'no-records' | i18next: {stage: workflowStep.config.workflow.stageLabel.toLowerCase(), recordTypeName: typeLabel.toLowerCase()} }}
+
+              @if ((dashboardTypeSelected == 'standard' || dashboardTypeSelected == 'workspace')) {
+                <div class="mt-4 search-input-group">
+                  <div class="input-group bg-slate-50 rounded-pill p-1 border">
+                    <input type="text" class="form-control border-0 bg-transparent ps-4" 
+                      [(ngModel)]="filterSearchString[workflowStep.config.workflow.stage]" 
+                      placeholder="Search {{ typeLabel }}..." 
+                      (keyup.enter)="filterChanged(workflowStep.config.workflow.stage)">
+                    <button class="btn btn-primary rounded-pill px-4 shadow-sm" type='button' 
+                      [disabled]="getIsSearching(workflowStep.config.workflow.stage)" 
+                      (click)="filterChanged(workflowStep.config.workflow.stage)">
+                      <i class="fa fa-search me-2"></i> Search
+                    </button>
+                  </div>
                 </div>
               }
-              @if (records[workflowStep.config.workflow.stage].totalItems > 0) {
-                <div>
-                  <table class="table">
-                    <thead>
-                      <tr>
-                        @for (rowConfig of tableConfig[workflowStep.config.workflow.stage]; track rowConfig) {
-                          <th>
-                            @if (enableSort) {
-                              <sort [title]="rowConfig.title | i18next" [variable]="rowConfig.variable" [step]="workflowStep.config.workflow.stage" [sort]="getSortStateFromSortMap(sortMap,workflowStep,rowConfig)" [secondarySort]="getSecondarySortStateFromSortMap(sortMap,workflowStep,rowConfig)" (sortChanged)="sortChanged($event)"> </sort>
+            </div>
+
+            <div class="card-body">
+              @if (records[workflowStep.config.workflow.stage] != null) {
+                <div class="table-responsive">
+                  @if (records[workflowStep.config.workflow.stage].totalItems <= 0) {
+                    <div class="text-center py-5 empty-state">
+                      <div class="mb-3 opacity-20">
+                        <i class="fa fa-folder-open fa-3x"></i>
+                      </div>
+                      <p class="text-slate-500 m-0">
+                        {{ 'no-records' | i18next: {stage: workflowStep.config.workflow.stageLabel.toLowerCase(), recordTypeName: typeLabel.toLowerCase()} }}
+                      </p>
+                    </div>
+                  } @else {
+                    <table class="table table-hover border-top-0 m-0">
+                      <thead>
+                        <tr class="border-bottom-2 border-slate-200">
+                          @for (rowConfig of tableConfig[workflowStep.config.workflow.stage]; track rowConfig) {
+                            <th class="text-slate-400 fw-bold text-uppercase-tracking py-4 border-0">
+                              @if (enableSort) {
+                                <sort [title]="rowConfig.title | i18next" [variable]="rowConfig.variable" [step]="workflowStep.config.workflow.stage" [sort]="getSortStateFromSortMap(sortMap,workflowStep,rowConfig)" [secondarySort]="getSecondarySortStateFromSortMap(sortMap,workflowStep,rowConfig)" (sortChanged)="sortChanged($event)"> </sort>
+                              } @else {
+                                <span class="dashboard-heading-no-sort">{{rowConfig.title | i18next}}</span>
+                              }
+                            </th>
+                          }
+                        </tr>
+                      </thead>
+                      <tbody class="divide-y divide-slate-100">
+                        @for (plan of records[workflowStep.config.workflow.stage].items; track plan) {
+                          <tr class="hover-bg-slate-50 transition-colors">
+                            @for (rowConfig of tableConfig[workflowStep.config.workflow.stage]; track rowConfig) {
+                              <td class="py-4 border-0" [innerHtml]="plan[rowConfig.variable]"></td>
                             }
-                            @if (!enableSort) {
-                              <span class="dashboard-heading-no-sort">{{rowConfig.title | i18next}}</span>
-                            }
-                          </th>
+                          </tr>
                         }
-                      </tr>
-                    </thead>
-                    @for (plan of records[workflowStep.config.workflow.stage].items; track plan) {
-                      <tbody>
-                        <tr>@for (rowConfig of tableConfig[workflowStep.config.workflow.stage]; track rowConfig) {
-                          <td [innerHtml]="plan[rowConfig.variable]"></td>
-                        }</tr>
                       </tbody>
-                    }
-                  </table>
-                  @if (records[workflowStep.config.workflow.stage].totalItems > 0) {
-                    <pagination [directionLinks]="false" [boundaryLinks]="true" [totalItems]="records[workflowStep.config.workflow.stage].totalItems"
-                    [(ngModel)]="records[workflowStep.config.workflow.stage].currentPage" (pageChanged)="pageChanged($event,workflowStep.config.workflow.stage)" class="pagination-sm" [maxSize]="10"></pagination>
+                    </table>
+
+                    <div class="d-flex justify-content-between align-items-center mt-4 pt-4 border-top border-slate-100">
+                      <div class="small text-slate-400">
+                        Total: <strong>{{ records[workflowStep.config.workflow.stage].totalItems }}</strong> items
+                      </div>
+                      <pagination [directionLinks]="false" [boundaryLinks]="true" 
+                        [totalItems]="records[workflowStep.config.workflow.stage].totalItems"
+                        [(ngModel)]="records[workflowStep.config.workflow.stage].currentPage" 
+                        (pageChanged)="pageChanged($event,workflowStep.config.workflow.stage)" 
+                        class="pagination-sm" [maxSize]="10">
+                      </pagination>
+                    </div>
                   }
                 </div>
               }
             </div>
-          }
+          </div>
         </div>
       }
-    </ng-container>
+    </div>
   </div>
 }

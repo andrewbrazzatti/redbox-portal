@@ -47,8 +47,6 @@ export class DateInputModel extends FormFieldModel<DateInputModelValueType> {
           [formControl]="formControl"
           [class.is-valid]="isValid"
           [class.is-invalid]="!isValid"
-          [required]="isRequired"
-          [disabled]="isDisabled"
           [readonly]="isReadonly"
           [title]="tooltip"
           [placeholder]="placeholder"
@@ -62,7 +60,6 @@ export class DateInputModel extends FormFieldModel<DateInputModelValueType> {
           <input
             type="time"
             class="form-control"
-            [disabled]="isDisabled"
             [readonly]="isReadonly"
             (change)="onTimeChange($event)"
           />

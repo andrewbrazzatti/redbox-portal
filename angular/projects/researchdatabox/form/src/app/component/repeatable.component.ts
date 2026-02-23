@@ -1,6 +1,6 @@
 import { Component, ComponentRef, inject, ViewChild, ViewContainerRef, TemplateRef, Injector } from '@angular/core';
 import { FormArray, AbstractControl } from '@angular/forms';
-import { FormFieldBaseComponent, FormFieldModel, FormFieldCompMapEntry  } from '@researchdatabox/portal-ng-common';
+import { FormFieldBaseComponent, FormFieldModel, FormFieldCompMapEntry } from '@researchdatabox/portal-ng-common';
 import {
   FormConfigFrame,
   RepeatableComponentName,
@@ -8,11 +8,12 @@ import {
   RepeatableFieldComponentConfig,
   RepeatableModelName
 } from '@researchdatabox/sails-ng-common';
-import { set as _set, isEmpty as _isEmpty, cloneDeep as _cloneDeep, get as _get, isUndefined as _isUndefined, isNull as _isNull } from 'lodash-es';
+import { isEmpty as _isEmpty, cloneDeep as _cloneDeep, isUndefined as _isUndefined } from 'lodash-es';
 import { FormService } from '../form.service';
 import { FormComponent } from "../form.component";
-import {FormBaseWrapperComponent} from "./base-wrapper.component";
-import {DefaultLayoutComponent} from "./default-layout.component";
+import { FormBaseWrapperComponent } from "./base-wrapper.component";
+import { DefaultLayoutComponent } from "./default-layout.component";
+import { createFormDefinitionChangeRequestEvent, FormComponentEventBus } from '../form-state';
 
 /**
  * Repeatable Form Field Component
@@ -24,12 +25,21 @@ import {DefaultLayoutComponent} from "./default-layout.component";
 @Component({
   selector: 'redbox-form-repeatable',
   template:
-  `
+    `
     <ng-container *ngTemplateOutlet="getTemplateRef('before')" />
-    <ng-container #repeatableContainer></ng-container>
-    @if (isStatusReady() && isVisible) {
-      <button type="button" class="btn btn-md btn-primary" (click)="appendNewElement()" [attr.aria-label]="'Add'">Add</button>
-    }
+    <div class="rb-form-repeatable">
+      <div class="rb-form-repeatable__items">
+        <ng-container #repeatableContainer></ng-container>
+      </div>
+      @if (isStatusReady() && isVisible) {
+        <div class="mt-4 border-top border-dashed pt-4">
+          <button type="button" class="rb-form-repeatable__add" (click)="appendNewElement()" [attr.aria-label]="'add-button-label' | i18next">
+            <i class="fa fa-plus-circle" aria-hidden="true"></i>
+            <span>{{ 'add-button-label' | i18next }}</span>
+          </button>
+        </div>
+      }
+    </div>
     <ng-container *ngTemplateOutlet="getTemplateRef('after')" />
   `,
   standalone: false
@@ -49,6 +59,7 @@ export class RepeatableComponent extends FormFieldBaseComponent<Array<unknown>> 
 
 
   private newElementFormConfig?: FormConfigFrame;
+  private readonly eventBus = inject(FormComponentEventBus);
 
   protected get getFormComponent(): FormComponent {
     return this.injector.get(FormComponent);
@@ -60,7 +71,7 @@ export class RepeatableComponent extends FormFieldBaseComponent<Array<unknown>> 
       .filter(c => c !== undefined && c !== null);
   }
 
-  public override get formFieldCompMapEntries() : FormFieldCompMapEntry[]  {
+  public override get formFieldCompMapEntries(): FormFieldCompMapEntry[] {
     return this.compDefMapEntries?.map(i => i?.defEntry) ?? [];
   }
 
@@ -68,7 +79,7 @@ export class RepeatableComponent extends FormFieldBaseComponent<Array<unknown>> 
     await this.untilViewIsInitialised();
     // Prepare the element template
     const elementTemplate = (this.componentDefinition?.config as RepeatableFieldComponentConfig)?.elementTemplate;
-    const formComponentName = this.formFieldCompMapEntry?.compConfigJson?.name;
+    const formComponentName = this.formFieldCompMapEntry?.compConfigJson?.name ?? "";
     if (!elementTemplate) {
       throw new Error(`${this.logName}: elementTemplate is not defined in the component definition for '${formComponentName}'.`);
     }
@@ -77,7 +88,7 @@ export class RepeatableComponent extends FormFieldBaseComponent<Array<unknown>> 
     this.newElementFormConfig = {
       name: `form-config-generated-repeatable-${formComponentName}`,
       // Add an empty name to satisfy the FormConfig, the name will be replaced with a generated name.
-      componentDefinitions: [{...elementTemplate, name: ""}],
+      componentDefinitions: [{ ...elementTemplate, name: "" }],
       // TODO: Get the default config?
       // defaultComponentConfig: this.getFormComponent.formDefMap?.formConfig?.defaultComponentConfig,
     };
@@ -89,7 +100,7 @@ export class RepeatableComponent extends FormFieldBaseComponent<Array<unknown>> 
         formConfig: ['component', 'config', 'elementTemplate'],
       }
     );
-    let formComponentsMap = await this.formService.createFormComponentsMap(this.newElementFormConfig, parentLineagePaths);
+    const formComponentsMap = await this.formService.createFormComponentsMap(this.newElementFormConfig, parentLineagePaths);
 
     if (_isEmpty(formComponentsMap)) {
       throw new Error(`${this.logName}: No components found in the formComponentsMap for '${formComponentName}'.`);
@@ -143,16 +154,22 @@ export class RepeatableComponent extends FormFieldBaseComponent<Array<unknown>> 
 
   protected rebuildLineagePaths() {
     for (let index = 0; index < this.compDefMapEntries.length; index++) {
+      const indexStr = index.toString();
       const lineagePath = this.formService.buildLineagePaths(
-      this.formFieldCompMapEntry?.lineagePaths,
-      {
-        angularComponents: [`${index}`],
-        dataModel: [],
-        formConfig: [],
-      }
-    );
+        this.formFieldCompMapEntry?.lineagePaths,
+        {
+          angularComponents: [indexStr],
+          dataModel: [indexStr],
+          formConfig: ['component', 'config', 'elementTemplate'],
+        });
       this.compDefMapEntries[index].defEntry.lineagePaths = lineagePath;
     }
+    // Every time the lineage paths are rebuilt, the form definition has essentially changed. Sending an event to notify listeners.
+    this.eventBus.publish(
+      createFormDefinitionChangeRequestEvent({
+        sourceId: this.formFieldConfigName() || undefined
+      })
+    );
   }
 
   protected createFieldNewMapEntry(templateEntry: FormFieldCompMapEntry, value: any): RepeatableElementEntry {
@@ -168,7 +185,7 @@ export class RepeatableComponent extends FormFieldBaseComponent<Array<unknown>> 
 
     // The component and layout names are set from the repeatable component name or a default name,
     // with localUniqueId appended to ensure uniqueness.
-    const baseName = this.formFieldConfigName('repeatable') || 'repeatable-element';
+    const baseName = this.formFieldConfigName('repeatable');
 
     if (elemEntry.compConfigJson) {
       elemEntry.compConfigJson.name = `${baseName}-${localUniqueId}`;
@@ -194,7 +211,7 @@ export class RepeatableComponent extends FormFieldBaseComponent<Array<unknown>> 
     };
   }
 
-  protected async createElement(elemEntry: RepeatableElementEntry ) {
+  protected async createElement(elemEntry: RepeatableElementEntry) {
     const elemFieldEntry = elemEntry.defEntry;
     // Pushing early so rebuilding the lineage paths will be accurate
     this.compDefMapEntries.push(elemEntry);
@@ -220,7 +237,7 @@ export class RepeatableComponent extends FormFieldBaseComponent<Array<unknown>> 
 
   public removeElementFn(elemEntry: RepeatableElementEntry) {
     const that = this;
-    return function() {
+    return function () {
       that.loggerService.debug(`${that.logName}: removeElement called: `, elemEntry.localUniqueId);
       that.loggerService.debug(`${that.logName}: removeElement called, matching elemEntry:`,
         that.compDefMapEntries.find(i => i === elemEntry)
@@ -234,35 +251,6 @@ export class RepeatableComponent extends FormFieldBaseComponent<Array<unknown>> 
       elemEntry.wrapperRef?.destroy();
       that.model?.removeElement(elemEntry.defEntry?.model);
       that.rebuildLineagePaths();
-    }
-  }
-
-  public override checkUpdateExpressions() {
-    this.loggerService.debug('repeatable checkUpdateExpressions');
-    let comps:FormFieldCompMapEntry[] = this.formFieldCompMapEntries ?? [];
-    //Evaluate top level expressions
-    super.checkUpdateExpressions();
-    //Propagate top level expressions and evaluate in its children components
-    //this is required for the parent component to delegate responsibility of
-    //behaviour to the children i.e. each component will handle its visibility
-    //but has to be maintained in sync with the overarching state of the parent
-    for(let entry of comps) {
-      if(_isUndefined(entry.component?.formFieldCompMapEntry?.layout)) {
-        entry.component?.propagateExpressions(this.expressions, true);
-      } else {
-        entry.component?.propagateExpressions(this.expressions);
-      }
-      let components = entry.component?.formFieldBaseComponents;
-      if(!_isUndefined(components) && !_isNull(components) && !_isEmpty(components)) {
-        for(let comp of components) {
-          let temp:FormFieldBaseComponent<unknown> = comp as FormFieldBaseComponent<unknown>;
-          temp.propagateExpressions(this.expressions);
-        }
-      }
-    }
-    //Evaluate expressions in children components
-    for(let entry of comps) {
-      entry.component?.checkUpdateExpressions();
     }
   }
 }
@@ -285,12 +273,19 @@ export class RepeatableComponentModel extends FormFieldModel<Array<unknown>> {
     const modelElems: AbstractControl[] = [];
 
     this.formControl = new FormArray(modelElems);
+    if (this.fieldConfig.config?.disabled) {
+      this.formControl.disable();
+    }
     console.debug(`${this.logName}: created form control with model class '${this.fieldConfig?.class}' and initial value:`, this.initValue);
   }
 
-  public addElement(targetModel?: FormFieldModel<unknown>){
-    if (this.formControl && targetModel){
-      this.formControl.push(targetModel.getFormControl());
+  public addElement(targetModel?: FormFieldModel<unknown>) {
+    const control = targetModel?.getFormControl();
+    if (this.formControl && control) {
+      if (this.formControl.disabled && control.enabled) {
+        control.disable();
+      }
+      this.formControl.push(control);
     } else {
       throw new Error(`${this.logName}: formControl or targetModel are not valid. Cannot add element.`);
     }
@@ -326,24 +321,20 @@ export interface RepeatableElementEntry {
 @Component({
   selector: 'redbox-form-repeatable-component-layout',
   template: `
-  <ng-container #componentContainer></ng-container>
-  @if (isVisible) {
-    <button type="button" class="col-auto fa fa-minus-circle btn text-20 btn-danger" (click)="clickedRemove()" [attr.aria-label]="'remove-button-label' | i18next"></button>
-  }
+  <div class="rb-form-repeatable-item" [class.rb-form-repeatable-item--contributor]="isContributorInline">
+    <div class="rb-form-repeatable-item__content">
+      <ng-container #componentContainer></ng-container>
+    </div>
+    @if (isVisible) {
+      <button type="button" class="rb-form-repeatable-item__remove btn btn-danger" (click)="clickedRemove()" [attr.aria-label]="'remove-button-label' | i18next">
+        <span class="fa fa-minus-circle" aria-hidden="true"></span>
+      </button>
+    }
+  </div>
   <ng-template #afterComponentTemplate>
     @if (isVisible) {
       @let componentValidationList = getFormValidatorComponentErrors;
-      @if (componentValidationList.length > 0) {
-        <div class="invalid-feedback">
-          Field validation errors:
-          <ul>
-            @for (error of componentValidationList; track $index) {
-              <li>{{ error.message | i18next: error.params }}</li>
-            }
-          </ul>
-        </div>
-      }
-      <div class="valid-feedback">The field is valid.</div>
+      <redbox-field-error-summary [errors]="componentValidationList" [fieldName]="componentName"></redbox-field-error-summary>
     }
   </ng-template>
   `,
@@ -352,6 +343,14 @@ export interface RepeatableElementEntry {
 export class RepeatableElementLayoutComponent<ValueType> extends DefaultLayoutComponent<ValueType> {
   protected override logName = RepeatableElementLayoutName;
   public removeFn?: () => void;
+
+  protected get isContributorInline(): boolean {
+    const hostCssClasses = this.formFieldCompMapEntry?.compConfigJson?.component?.config?.hostCssClasses;
+    if (typeof hostCssClasses !== 'string') {
+      return false;
+    }
+    return hostCssClasses.split(/\s+/).includes('rb-form-contributor-inline');
+  }
 
   protected clickedRemove() {
     this.removeFn?.call(this);

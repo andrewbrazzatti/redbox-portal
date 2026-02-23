@@ -8,11 +8,11 @@
   <div class="col-md-9 col-lg-10 admin-main-content">
     <div class="default-page">
       <div class="header">
-        <h1 id="main-title" class="container">
+        <h1 id="main-title" class="container-xl">
           <%= titleLabel %>
         </h1>
       </div>
-      <div class="main container clearfix">
+      <div class="main container-xl clearfix">
         <dashboard recordType="<%= typeof recordType == 'undefined'? data.recordType : recordType %>"
           dashboardType="standard" packageType="<%= typeof packageType == 'undefined' ? data.recordType : packageType %>" <% if (typeof contentSecurityPolicyNonce !== "undefined" && contentSecurityPolicyNonce) {%>ngCspNonce="<%= contentSecurityPolicyNonce %>"<% } %>>
           <div class="col-xs-1">
@@ -31,11 +31,11 @@
 <% } else { %>
   <div class="default-page">
     <div class="header">
-      <h1 id="main-title" class="container">
+      <h1 id="main-title" class="container-xl">
         <%= titleLabel %>
       </h1>
     </div>
-    <div class="main container clearfix">
+    <div class="main container-xl clearfix">
       <dashboard recordType="<%= typeof recordType == 'undefined'? data.recordType : recordType %>"
         dashboardType="standard" packageType="<%= typeof packageType == 'undefined' ? data.recordType : packageType %>" <% if (typeof contentSecurityPolicyNonce !== "undefined" && contentSecurityPolicyNonce) {%>ngCspNonce="<%= contentSecurityPolicyNonce %>"<% } %>>
         <div class="col-xs-1">

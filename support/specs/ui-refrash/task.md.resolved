@@ -1,0 +1,19 @@
+# UI Refresh Task
+
+- [ ] Investigate the current UI and identify inconsistencies.
+  - [x] Find the local server port.
+  - [/] Use browser subagent to log in and navigate the portal.
+  - [/] Take screenshots/videos to understand the current state.
+- [x] Create an implementation plan for the UI refresh based on `design-taste-frontend` guidelines.
+  - [x] Review implementation plan with the user.
+- [x] Execute the UI refresh.
+  - [x] Update global styles and variables.
+  - [x] Update layout templates (EJS/Angular).
+  - [x] Standardize typography, colors, and interactive states.
+- [x] Verification and walkthrough.
+
+## Remaining Tasks (Phase 2 Execution)
+- [ ] **Unify Header & Navigation**: Restructure [layout.ejs](file:///Users/andrewbrazzatti/source/github/redbox-portal-2/views/layout.ejs) to combine the top utility bar ("Welcome Local Admin") and the main navigation into a single cohesive, top-level modern component.
+- [ ] **Global Application of Bento Cards**: Ensure `.bento-card` layout is applied to all major containers universally (e.g., Login page, Record Editor, Settings), not just the Dashboard.
+- [ ] **Table Striping Cleanup**: Explicitly override and remove Bootstrap's `.table-striped` high-contrast zebra striping globally in favor of the clean 1px bottom-borders.
+- [ ] **Refine Default Colors & Hover States**: Systematically replace the remaining default generic blue/red button backgrounds and hover states with theme-specific variants (Deep Slate / Deep Rose).

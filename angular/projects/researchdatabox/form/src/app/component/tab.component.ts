@@ -1,12 +1,12 @@
 import { Component, ViewChild, ViewContainerRef, ComponentRef, inject, Injector, HostBinding } from '@angular/core';
-import { FormFieldBaseComponent, FormFieldCompMapEntry } from '@researchdatabox/portal-ng-common';
+import { FormFieldBaseComponent, FormFieldCompMapEntry, TranslationService } from '@researchdatabox/portal-ng-common';
 import {
   FormConfigFrame, guessType, isTypeFieldDefinitionName, isTypeFormComponentDefinitionName,
   TabComponentName,
   TabContentComponentName, TabContentFieldComponentDefinitionFrame,
   TabContentFormComponentDefinitionFrame,
   TabFieldComponentConfigFrame, TabFieldComponentDefinitionFrame,
-  TabFieldLayoutDefinitionFrame, TabLayoutName
+  TabFieldLayoutConfig, TabFieldLayoutDefinitionFrame, TabLayoutName
 } from '@researchdatabox/sails-ng-common';
 import { find as _find, merge as _merge } from 'lodash-es';
 import { FormComponent } from "../form.component";
@@ -22,35 +22,42 @@ import { DefaultLayoutComponent } from './default-layout.component';
 @Component({
   selector: 'redbox-form-tab-layout',
   template: `
-    <!-- Button Section -->
-    <div [class]="getStringProperty('buttonSectionCssClass')" role="tablist" [attr.aria-orientation]="getStringProperty('buttonSectionAriaOrientation')">
-      <!-- Loop through tabs and create buttons -->
-      @for (tab of tabConfig.tabs; track $index) {
-        <button class="nav-link"
-                [class.active]="tabInstance && tab.name == tabInstance.selectedTabId"
-                [attr.id]="tab.name + '-tab-button'"
-                type="button"
-                role="tab"
-                [attr.aria-selected]="tabInstance && tab.name == tabInstance.selectedTabId"
-                [attr.aria-controls]="tab.name + '-tab-content'"
-                [innerHTML]="tab.layout?.config?.buttonLabel" (click)="selectTab(tab.name)">
-        </button>
-      }
+    <div [class]="resolvedLayoutConfig.tabShellCssClass">
+      <div [class]="resolvedLayoutConfig.tabNavWrapperCssClass">
+        <div [class]="resolvedLayoutConfig.buttonSectionCssClass" role="tablist" [attr.aria-orientation]="resolvedLayoutConfig.buttonSectionAriaOrientation">
+          @if (initialSelectionDone) {
+            @for (tab of tabConfig.tabs; track $index) {
+              <button class="nav-link"
+                      [class.active]="tabInstance && tab.name == tabInstance.selectedTabId"
+                      [attr.id]="tab.name + '-tab-button'"
+                      type="button"
+                      role="tab"
+                      [attr.aria-selected]="tabInstance && tab.name == tabInstance.selectedTabId"
+                      [attr.aria-controls]="tab.name + '-tab-content'"
+                      [innerHTML]="translateLabel(tab.layout?.config?.buttonLabel)" (click)="selectTab(tab.name)">
+              </button>
+            }
+          }
+        </div>
+      </div>
+      <div [class]="resolvedLayoutConfig.tabPanelWrapperCssClass">
+        <ng-container #componentContainer></ng-container>
+      </div>
     </div>
-    <ng-container #componentContainer ></ng-container>
   `,
   standalone: false
 })
 export class TabComponentLayout extends DefaultLayoutComponent<undefined> {
   protected override logName = TabLayoutName;
   public override componentDefinition?: TabFieldLayoutDefinitionFrame;
+  private readonly translationService = inject(TranslationService);
 
   protected get tabConfig(): TabFieldComponentConfigFrame {
     const component = this.formFieldCompMapEntry?.compConfigJson?.component;
-    if (!component || !isTypeFieldDefinitionName<TabFieldComponentDefinitionFrame>(component, component.class)){
-      throw new Error();
+    if (!component || !isTypeFieldDefinitionName<TabFieldComponentDefinitionFrame>(component, component.class)) {
+      throw new Error(`Invalid tabConfig ${JSON.stringify(component)}`);
     }
-    return component?.config || {tabs:[]};
+    return component?.config || { tabs: [] };
   }
 
   protected get tabInstance(): TabComponent | null {
@@ -65,6 +72,14 @@ export class TabComponentLayout extends DefaultLayoutComponent<undefined> {
       this.loggerService.warn(`${this.logName}: Expected instance to be TabComponent, but instance was:`, instance);
     }
     return null;
+  }
+
+  protected get resolvedLayoutConfig(): TabFieldLayoutConfig {
+    const defaults = new TabFieldLayoutConfig();
+    return {
+      ...defaults,
+      ...(this.componentDefinition?.config ?? {}),
+    };
   }
 
   private isTabComponent(item: unknown): item is TabComponent {
@@ -87,19 +102,54 @@ export class TabComponentLayout extends DefaultLayoutComponent<undefined> {
     return this.formFieldCompMapEntry?.compConfigJson?.name || '';
   }
 
+  protected initialSelectionDone = false;
+
+  protected override async setComponentReady(): Promise<void> {
+    await super.setComponentReady();
+    if (this.wrapperComponentRef) {
+      this.wrapperComponentRef.location.nativeElement.style.flexGrow = '1';
+    }
+    try {
+      if (!this.initialSelectionDone &&
+        this.tabInstance &&
+        this.tabInstance.tabs.length > 0 &&
+        this.tabInstance.wrapperRefs.length === this.tabInstance.tabs.length &&
+        this.tabInstance.selectedTabId) {
+        const tabId = this.tabInstance.selectedTabId;
+        this.selectTab(tabId);
+        this.initialSelectionDone = true;
+      }
+    } catch (error) {
+      this.loggerService.error(`${this.logName}: Error during initial tab selection`, error);
+    }
+  }
+
   public selectTab(tabId: string) {
     const selectionResult = this.tabInstance?.selectTab(tabId);
-    if (selectionResult && selectionResult.changed) {
+    if (selectionResult && (selectionResult.changed || selectionResult.errorType === TabSelectionErrorType.ALREADY_SELECTED)) {
       this.loggerService.debug(`${this.logName}: Tab selection changed`, selectionResult);
       // remove the 'show active' classes from all tabs
       selectionResult.wrappers?.forEach((instance: FormBaseWrapperComponent<unknown>) => {
-        instance.hostBindingCssClasses = this.componentDefinition?.config?.tabPaneCssClass;
+        instance.hostBindingCssClasses = this.resolvedLayoutConfig.tabPaneCssClass;
       });
       // add the 'show active' class to the selected tab
       if (selectionResult.selectedWrapper !== null && selectionResult.selectedWrapper !== undefined) {
-        selectionResult.selectedWrapper.hostBindingCssClasses = `${this.componentDefinition?.config?.tabPaneCssClass} ${this.componentDefinition?.config?.tabPaneActiveCssClass}`;
+        selectionResult.selectedWrapper.hostBindingCssClasses =
+          `${this.resolvedLayoutConfig.tabPaneCssClass} ${this.resolvedLayoutConfig.tabPaneActiveCssClass}`.trim();
       }
     }
+  }
+
+  protected translateLabel(label?: string): string {
+    if (!label) {
+      return '';
+    }
+    const translated = this.translationService.t(label);
+    if (translated === undefined || translated === null || translated === '') {
+      return label;
+    }
+    const value = typeof translated === 'string' ? translated : String(translated);
+    return value === 'undefined' ? label : value;
   }
 }
 
@@ -111,7 +161,7 @@ export class TabComponentLayout extends DefaultLayoutComponent<undefined> {
  */
 @Component({
   selector: 'redbox-form-tab',
-  template:`
+  template: `
     <ng-container #tabsContainer />
 `,
   standalone: false
@@ -128,27 +178,39 @@ export class TabComponent extends FormFieldBaseComponent<undefined> {
   public override componentDefinition?: TabFieldComponentDefinitionFrame;
 
   protected get tabConfig(): TabFieldComponentConfigFrame {
-    return this.componentDefinition?.config || {tabs: []};
+    return this.componentDefinition?.config || { tabs: [] };
   }
 
   protected override async initData() {
     this.tabs = this.tabConfig?.tabs || [];
   }
 
+  /**
+   * Initializes all tab wrappers, merges their form controls into the parent map, and selects an initial tab.
+   *
+   * - Defers tab selection until every tab is created and initialized to avoid flashes of content.
+   * - If multiple tabs are configured with `selected: true`, the last one encountered wins; this behavior is intentional
+   *   but may be reconsidered if a warning or first-selected preference is desired.
+   * - Falls back to selecting the first tab when none are explicitly marked as selected.
+   */
   protected override async setComponentReady(): Promise<void> {
     await this.untilViewIsInitialised();
     this.loggerService.debug(`${this.logName}: Initializing TabComponent with ${this.tabs.length} tabs.`);
     this.tabsContainer.clear();
-
+    let selectedTabName = null;
     for (let index = 0; index < this.tabs.length; index++) {
       const tab = this.tabs[index];
       const tabWrapperRef = this.tabsContainer.createComponent(FormBaseWrapperComponent<null>);
       tab.name = `${tab.name || index}`;
+      // Ensure tab is hidden immediately upon creation to prevent flash of content
+      tabWrapperRef.instance.hostBindingCssClasses = 'd-none';
+      tabWrapperRef.changeDetectorRef.detectChanges();
+
       const fieldMapDefEntry: FormFieldCompMapEntry = {
         componentClass: TabContentComponent,
         compConfigJson: tab,
         lineagePaths: this.formService.buildLineagePaths(this.formFieldCompMapEntry?.lineagePaths, {
-          angularComponents: [`${tab?.name}`],
+          angularComponents: [tab?.name],
           dataModel: [],
           formConfig: ['component', 'config', 'tabs', index],
         }),
@@ -171,10 +233,14 @@ export class TabComponent extends FormFieldBaseComponent<undefined> {
         }
         _merge(this.formFieldCompMapEntry.formControlMap, fieldMapDefEntry.formControlMap);
       }
+      // Note: the last tab with `selected` true will take precedence
       if (tab.component?.config?.selected) {
-        this.selectTab(tab.name);
+        selectedTabName = tab.name;
       }
     }
+    // Note: selection is deferred to the layout component to avoid flashes and incorrect display of content. For now, we just set the selectedTabId here for the layout to pick up.
+    // This will select the first tab if none are marked as selected.
+    this.selectedTabId = selectedTabName ?? this.tabs[0]?.name ?? '0';
     await super.setComponentReady();
   }
 
@@ -211,19 +277,43 @@ export class TabComponent extends FormFieldBaseComponent<undefined> {
     }
 
     this.selectedTabId = tabId;
-    if (tab.component?.config) {
-      tab.component.config.selected = true;
-    }
+    this.tabs.forEach((currentTab) => {
+      if (currentTab.component?.config) {
+        currentTab.component.config.selected = currentTab.name === tabId;
+      }
+    });
+    this.applyTabPaneClasses(wrapperInst);
     selectionResult.changed = true;
     selectionResult.selectedWrapper = wrapperInst.instance;
     return selectionResult;
+  }
+
+  private applyTabPaneClasses(selectedWrapperRef: ComponentRef<FormBaseWrapperComponent<unknown>>): void {
+    this.wrapperRefs.forEach((wrapperRef) => {
+      const isSelected = wrapperRef === selectedWrapperRef;
+      const paneCssClasses = this.getPaneCssClasses();
+      wrapperRef.instance.hostBindingCssClasses = isSelected
+        ? `${paneCssClasses.tabPaneCssClass} ${paneCssClasses.tabPaneActiveCssClass}`.trim()
+        : paneCssClasses.tabPaneCssClass;
+      wrapperRef.changeDetectorRef.detectChanges();
+    });
+  }
+
+  private getPaneCssClasses(): { tabPaneCssClass: string; tabPaneActiveCssClass: string } {
+    const defaults = new TabFieldLayoutConfig();
+    const layoutRef = this.formFieldCompMapEntry?.layoutRef;
+    const layoutConfig = (layoutRef?.instance as TabComponentLayout | undefined)?.componentDefinition?.config;
+    return {
+      tabPaneCssClass: layoutConfig?.tabPaneCssClass ?? defaults.tabPaneCssClass ?? '',
+      tabPaneActiveCssClass: layoutConfig?.tabPaneActiveCssClass ?? defaults.tabPaneActiveCssClass ?? '',
+    };
   }
 
   public override get formFieldBaseComponents(): FormFieldBaseComponent<unknown>[] {
     return this.componentInstances;
   }
 
-  public override get formFieldCompMapEntries() : FormFieldCompMapEntry[] {
+  public override get formFieldCompMapEntries(): FormFieldCompMapEntry[] {
     return this.componentFormMapEntries;
   }
 
@@ -251,7 +341,7 @@ export class TabContentComponent extends FormFieldBaseComponent<undefined> {
   protected override logName = TabContentComponentName;
   public override componentDefinition?: TabContentFieldComponentDefinitionFrame;
   tab?: TabContentFormComponentDefinitionFrame;
-   @ViewChild('componentContainer', {
+  @ViewChild('componentContainer', {
     read: ViewContainerRef,
     static: false
   })
@@ -278,8 +368,9 @@ export class TabContentComponent extends FormFieldBaseComponent<undefined> {
       throw new Error(`${this.logName}: componentsDefinitionsContainer is not defined.`);
     }
     const formConfig = this.formComponentRef.formDefMap?.formConfig;
+    const formComponentName = this.formFieldCompMapEntry?.compConfigJson?.name ?? "";
     const compFormConfig: FormConfigFrame = {
-      name: `form-config-generated-tab-${this.formFieldCompMapEntry?.compConfigJson?.name}`,
+      name: `form-config-generated-tab-${formComponentName}`,
       componentDefinitions: this.tab?.component?.config?.componentDefinitions || [],
       defaultComponentConfig: formConfig?.defaultComponentConfig,
     };
@@ -319,7 +410,7 @@ export class TabContentComponent extends FormFieldBaseComponent<undefined> {
     return this.componentInstances;
   }
 
-  public override get formFieldCompMapEntries() : FormFieldCompMapEntry[]  {
+  public override get formFieldCompMapEntries(): FormFieldCompMapEntry[] {
     return this.formDefMap?.components || [];
   }
 
@@ -346,5 +437,3 @@ export interface TabSelectionResult {
   wrappers: FormBaseWrapperComponent<unknown>[] | null;
   errorType: TabSelectionErrorType;
 }
-
-

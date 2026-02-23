@@ -1,11 +1,9 @@
 <div class="row">
     <div class="col-md-offset-5 col-md-3">
-      <div class="panel panel-default">
-        <div class="panel-heading">
-          <span class="panel-title"><%= TranslationService.t('openidconnect-title') %></span>
-        </div>
-        <div class="panel-body">
-          <a href='/user/begin_oidc'><img src='/images/Openid_connect_logo.png' alt="<%= TranslationService.t('openidconnect-logo-alt-text') %>"/></a>
+      <div class="bento-card mb-4">
+        <div class="card-body p-4 text-center">
+          <h4 class="fw-semibold mb-3"><%= TranslationService.t('openidconnect-title') %></h4>
+          <a href='/user/begin_oidc'><img src='/images/Openid_connect_logo.png' alt="<%= TranslationService.t('openidconnect-logo-alt-text') %>" class="img-fluid" style="max-width: 200px;"/></a>
         </div>
       </div>
     </div>

@@ -4,7 +4,7 @@
 
 <div class="default-page">
   <div class="header">
-    <h1 id="main-title" class="container"><%= TranslationService.t('workspaces') %></h1>
+    <h1 id="main-title" class="container-xl"><%= TranslationService.t('workspaces') %></h1>
     <br/>
   </div>
   <div class="row" id="loading">
@@ -16,7 +16,7 @@
     <div class="col-xs-1">
     </div>
   </div>
-  <div class="main container clearfix">
+  <div class="main container-xl clearfix">
     <workspace-list branding="<%= typeof branding == 'undefined'? data.branding : branding %>" portal="<%= typeof portal == 'undefined'? data.portal : portal %>" packageType="workspace" <% if (typeof contentSecurityPolicyNonce !== "undefined" && contentSecurityPolicyNonce) {%>ngCspNonce="<%= contentSecurityPolicyNonce %>"<% } %>></workspace-list>
 
     <script type="text/javascript" src="<%= BrandingService.getRootContext() %>/angular/workspace_list/inline.bundle.js?ts=<%= sails.config.startupMinute %>"></script>

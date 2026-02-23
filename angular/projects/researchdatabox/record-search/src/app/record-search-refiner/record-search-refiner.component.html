@@ -1,0 +1,40 @@
+<div class="bento-card mb-4 panel-search-refine">
+  <div class="card-header bg-transparent border-bottom-0 pt-4 pb-0 px-4">
+    <h3 class="h4 fw-semibold mb-0 d-inline-block">
+      {{ refinerConfig.title | i18next }}
+    </h3>
+  </div>
+  <div class="card-body p-4">
+    @if (refinerConfig.typeLabel) {
+      <div>{{ refinerConfig.typeLabel | i18next }}</div>
+    }
+    @if (refinerConfig.type === 'exact') {
+      <div class="input-group">
+        <input [(ngModel)]="refinerConfig.value" class="form-control" (keyup.enter)="applyFilter($event)" />
+        <span class="input-group-btn">
+          <button
+            [disabled]="isSearching || !hasValue()"
+            class="btn btn-primary"
+            type="button"
+            (click)="applyFilter($event)"
+          >
+            {{ 'search-refine-apply-filter' | i18next }}
+          </button>
+        </span>
+      </div>
+    }
+    @if (refinerConfig.type === 'facet') {
+      <div class="input-group">
+        @for (facetValue of refinerConfig.value; track facetValue.value) {
+          @if (facetValue.count > 0 && facetValue.value) {
+            <div>
+              <a (click)="applyFilter($event, facetValue.value)"
+                >{{ facetValue.value }} ({{ facetValue.count }})</a
+              >
+            </div>
+          }
+        }
+      </div>
+    }
+  </div>
+</div>

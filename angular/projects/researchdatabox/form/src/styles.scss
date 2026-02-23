@@ -1,1 +1,10 @@
 /* You can add global styles to this file, and also import other style files */
+
+@import "@uppy/core/css/style.css";
+@import "@uppy/dashboard/css/style.css";
+
+:root {
+  --rb-form-color-danger: #be3b2f;
+  --rb-form-color-danger-strong: #7f1a13;
+  --rb-form-color-danger-soft: #fff5f3;
+}

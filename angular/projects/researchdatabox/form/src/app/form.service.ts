@@ -17,13 +17,13 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-import {Inject, Injectable, WritableSignal} from '@angular/core';
-import {AbstractControl, FormControl, FormGroup} from '@angular/forms';
-import {isEmpty as _isEmpty,  merge as _merge, set as _set, isUndefined as _isUndefined, toNumber as _toNumber, isFinite as _isFinite } from 'lodash-es';
+import { Inject, Injectable, WritableSignal } from '@angular/core';
+import { AbstractControl, FormControl } from '@angular/forms';
+import { isEmpty as _isEmpty, merge as _merge, set as _set, toNumber as _toNumber, isFinite as _isFinite } from 'lodash-es';
 import {
-  StaticComponentClassMap,
-  StaticModelClassMap,
-  StaticLayoutClassMap,
+  getStaticComponentClassMap,
+  getStaticModelClassMap,
+  getStaticLayoutClassMap,
   AllComponentClassMapType,
   AllModelClassMapType,
   AllLayoutClassMapType,
@@ -39,7 +39,7 @@ import {
   UtilityService,
   JSONataClientQuerySourceProperty
 } from '@researchdatabox/portal-ng-common';
-import {PortalNgFormCustomService} from '@researchdatabox/portal-ng-form-custom';
+import { PortalNgFormCustomService } from '@researchdatabox/portal-ng-form-custom';
 import {
   FormFieldComponentStatus,
   FormComponentDefinitionFrame,
@@ -52,11 +52,13 @@ import {
   JSONataQuerySourceProperty,
   buildLineagePaths as buildLineagePathsHelper,
   queryJSONata,
-  getObjectWithJsonPointer
+  getObjectWithJsonPointer,
+  FormModesConfig, KindNameDefaultsMap, FieldModelDefinitionKind,
+  FormComponentDefinitionKind, KindNameDefaultsMapType,
 } from '@researchdatabox/sails-ng-common';
-import {HttpClient} from "@angular/common/http";
-import {APP_BASE_HREF} from "@angular/common";
-import {firstValueFrom} from "rxjs";
+import { HttpClient } from "@angular/common/http";
+import { APP_BASE_HREF } from "@angular/common";
+import { firstValueFrom } from "rxjs";
 
 
 // redboxClientScript.formValidatorDefinitions is provided from index.bundle.js, via client-script.js
@@ -64,8 +66,7 @@ declare var redboxClientScript: { formValidatorDefinitions: FormValidatorDefinit
 
 /**
  *
- * FormService
- * - retrieves form configuration
+ * Responsible for retrieving form configuration and building form components.
  *
  * Author: <a href='https://github.com/shilob' target='_blank'>Shilo Banihit</a>
  *
@@ -81,6 +82,7 @@ export class FormService extends HttpClientService {
   protected compClassMap: AllComponentClassMapType = {};
   protected modelClassMap: AllModelClassMapType = {};
   protected layoutClassMap: AllLayoutClassMapType = {};
+  protected kindNameDefaultsMap: KindNameDefaultsMapType;
   protected validatorsSupport: ValidatorsSupport;
 
   private requestOptions: Record<string, unknown> = {};
@@ -95,23 +97,25 @@ export class FormService extends HttpClientService {
     @Inject(HttpClient) protected override http: HttpClient,
     @Inject(APP_BASE_HREF) public override rootContext: string,
     @Inject(ConfigService) protected override configService: ConfigService,
-    ) {
+  ) {
     super(http, rootContext, utilityService, configService)
     // start with the static version, will dynamically merge any custom components later
-    _merge(this.modelClassMap, StaticModelClassMap);
+    _merge(this.modelClassMap, getStaticModelClassMap());
     this.loggerService.debug(`${this.logName}: Static component classes:`,
       Object.fromEntries(Object.entries(this.compClassMap).map(([key, value]) => [key, value.name]))
     );
 
-    _merge(this.compClassMap, StaticComponentClassMap);
+    _merge(this.compClassMap, getStaticComponentClassMap());
     this.loggerService.debug(`${this.logName}: Static model classes:`,
       Object.fromEntries(Object.entries(this.modelClassMap).map(([key, value]) => [key, value.name]))
     );
 
-    _merge(this.layoutClassMap, StaticLayoutClassMap);
+    _merge(this.layoutClassMap, getStaticLayoutClassMap());
     this.loggerService.debug(`${this.logName}: Static layout classes:`,
       Object.fromEntries(Object.entries(this.layoutClassMap).map(([key, value]) => [key, value?.constructor?.name]))
     );
+
+    this.kindNameDefaultsMap = KindNameDefaultsMap;
 
     this.validatorsSupport = new ValidatorsSupport();
   }
@@ -126,7 +130,7 @@ export class FormService extends HttpClientService {
     (this.requestOptions['headers'] as Record<string, string>)['X-ReDBox-Api-Version'] = '2.0';
 
     this.enableCsrfHeader();
-    _merge(this.requestOptions, {context: this.httpContext});
+    _merge(this.requestOptions, { context: this.httpContext });
     return this;
   }
 
@@ -140,11 +144,11 @@ export class FormService extends HttpClientService {
    * Returns:
    *  array of form fields containing the corresponding component information, ready for rendering.
    */
-  public async downloadFormComponents(oid: string, recordType: string, editMode: boolean, formName: string, modulePaths:string[]): Promise<FormComponentsMap> {
+  public async downloadFormComponents(oid: string, recordType: string, editMode: boolean, formName: string, modulePaths: string[]): Promise<FormComponentsMap> {
     // Get the form config from the server.
     // Includes the integrated model data (in componentDefinition.model.config.value) for rendering the form.
     const formConfig = await this.getFormConfig(oid, recordType, editMode, formName);
-    if (!formConfig){
+    if (!formConfig) {
       throw new Error("Form config from server was empty.");
     }
 
@@ -198,7 +202,7 @@ export class FormService extends HttpClientService {
    * @param componentDefinitions The config for the components.
    * @param parentLineagePaths The linage paths of the parent item.
    */
-  public async resolveFormComponentClasses(componentDefinitions:  FormComponentDefinitionFrame[], parentLineagePaths: LineagePaths): Promise<FormFieldCompMapEntry[]> {
+  public async resolveFormComponentClasses(componentDefinitions: FormComponentDefinitionFrame[], parentLineagePaths: LineagePaths): Promise<FormFieldCompMapEntry[]> {
     const fieldArr: FormFieldCompMapEntry[] = [];
     const compDefInfo = componentDefinitions?.map(i => `'${i?.name}':${i?.component?.class}`) ?? [];
     this.loggerService.info(`${this.logName}: resolving ${componentDefinitions?.length ?? 0} component definitions ${compDefInfo.join(',')}`);
@@ -297,6 +301,10 @@ export class FormService extends HttpClientService {
         fieldDef = {};
       }
 
+      if (componentConfig?.expressions) {
+        _set(fieldDef, 'expressions', componentConfig.expressions);
+      }
+
       // Add the field definition to the list if it has the minimum requirements.
       if (!_isEmpty(fieldDef)) {
         _merge(fieldDef, {
@@ -313,7 +321,7 @@ export class FormService extends HttpClientService {
     return fieldArr;
   }
 
-  public createFormFieldModelInstances(components:FormFieldCompMapEntry[]): void {
+  public createFormFieldModelInstances(components: FormFieldCompMapEntry[]): void {
     const names = components?.map(i => i?.compConfigJson?.name) ?? [];
     this.loggerService.debug(`${this.logName}: create form field model instances from ${components?.length ?? 0} components ${names.join(',')}.`);
     for (let compEntry of components) {
@@ -325,23 +333,33 @@ export class FormService extends HttpClientService {
     const ModelType = compMapEntry.modelClass;
     const modelConfig = compMapEntry.compConfigJson.model;
     const enabledGroups = this.loadedFormConfig?.enabledValidationGroups ?? ["all"];
+
+    const componentClassName = compMapEntry?.compConfigJson?.component?.class;
+    const name = compMapEntry?.compConfigJson?.name;
+    const layoutClassName = compMapEntry?.compConfigJson?.layout?.class;
+    const modelClassName = compMapEntry?.compConfigJson?.model?.class;
+
     if (ModelType && modelConfig) {
       compMapEntry.model = new ModelType(modelConfig);
       this.setValidators(compMapEntry.model.formControl, compMapEntry.model.validators, enabledGroups);
       return compMapEntry.model;
-    } else {
-      // TODO: Is there some way to indicate which components must have a model, and which ones must not?
-      //       Then this could throw an error instead of warning about components that can't have a model.
-      // Model is now optional, so we can return null if the model is not defined.
-      // Log appropriate warning to highlight potential config errors.
-      const name = compMapEntry?.compConfigJson?.name;
-      const componentClassName = compMapEntry?.compConfigJson?.component?.class;
-      const layoutClassName = compMapEntry?.compConfigJson?.layout?.class;
-      const modelClassName = compMapEntry?.compConfigJson?.model?.class;
-      this.loggerService.warn(`${this.logName}: Model class or model config is not defined for component name ${JSON.stringify(name)}. ` +
-        `Component class ${JSON.stringify(componentClassName)} layout class ${JSON.stringify(layoutClassName)} model class ${JSON.stringify(modelClassName)}. ` +
-        `If this is unexpected, check your form configuration.`);
     }
+
+    // Check if there is a default model class name for this field component.
+    const sourceDefaultsMap = this.kindNameDefaultsMap.get(FormComponentDefinitionKind);
+    const targetDefaultsMap = sourceDefaultsMap?.get(componentClassName);
+    const modelClassDefaultName = targetDefaultsMap?.get(FieldModelDefinitionKind);
+    const hasModelClassDefault = modelClassDefaultName !== undefined && modelClassDefaultName !== null;
+
+    if (hasModelClassDefault) {
+      // If there is a default model class name, then assume that there must be a model class.
+      // It is an error to not provide ModelType or not provide modelConfig when there is a default model class name.
+      throw new Error(`${this.logName}: Model class or model config is not defined for component name ${JSON.stringify(name)}. ` +
+        `Component class ${JSON.stringify(componentClassName)} layout class ${JSON.stringify(layoutClassName)} model class ${JSON.stringify(modelClassName)}. ` +
+        `The assumption is that if there is a default model class '${JSON.stringify(modelClassDefaultName)}', then a model class must be provided.`);
+    }
+
+    // Model is optional, so we can return null if the model is not defined and there is no default model class name.
     return null;
   }
 
@@ -355,15 +373,25 @@ export class FormService extends HttpClientService {
     const groupWithFormControl: any = {};
     for (let compEntry of compMap.components) {
       const fieldName = compEntry.compConfigJson.name ?? "";
+
       if (_isEmpty(fieldName)) {
         this.loggerService.info(`Field name is empty for component. If you need this component to be part of the form or participate in events, please provide a name.`, compEntry);
         continue;
       }
+
+      // Populate the map of name to compEntry.
       if (groupMap[fieldName]) {
         throw new Error(`${this.logName}: Field name '${fieldName}' is already used. Names must be unique, please change the names to be unique. ` +
           `The existing grouped component names are: ${Object.keys(groupMap).join(',')}`);
       }
       groupMap[fieldName] = compEntry;
+
+      // const includeInFormControlMap = this.shouldIncludeInFormControlMap(compEntry);
+      // if (!includeInFormControlMap) {
+      //   continue;
+      // }
+
+      // Populate the map of name to form control.
       if (compEntry.model) {
         const model = compEntry.model;
         const formControl = model.formControl;
@@ -371,9 +399,11 @@ export class FormService extends HttpClientService {
           groupWithFormControl[fieldName] = formControl;
         }
       } else {
-        // Some components may not have a model themselves, but can 'contain' other components
+        // Some components may not have a model themselves, but can 'contain' other components.
         if (compEntry.formControlMap && !_isEmpty(compEntry.formControlMap)) {
-          // traverse the model map and add the models to the group map
+          // Traverse the model map and add the models to the group map.
+          // The form controls added here are child form controls.
+          // We made the design choice to add them to the parent level to make them available.
           for (const [name, formControl] of Object.entries(compEntry.formControlMap)) {
             if (formControl && name) {
               groupWithFormControl[name] = formControl;
@@ -387,56 +417,49 @@ export class FormService extends HttpClientService {
     return compMap;
   }
 
+  public shouldIncludeInFormControlMap(compEntry: FormFieldCompMapEntry | null | undefined): boolean {
+    if (!compEntry) {
+      return false;
+    }
+
+    const modelDisabled = compEntry.compConfigJson?.model?.config?.disabled === true;
+    const componentDisabled = compEntry.compConfigJson?.component?.config?.disabled === true;
+    const layoutDisabled = compEntry.compConfigJson?.layout?.config?.disabled === true;
+    return !(modelDisabled || componentDisabled || layoutDisabled);
+  }
+
   /**
-   * Get the validation errors for the given control and all child controls.
-   * @param componentDefs Gather the validation errors using these component definitions.
-   * @param name The optional name of the control.
-   * @param control The Angular control instance.
-   * @param parents The names of the parent controls.
-   * @param results The accumulated results.
+   * Get the flat array of validation errors for the given component and all child components.
+   * @param mapEntry Gather the validation errors for this component.
    * @return An array of validation errors.
    */
-  public getFormValidatorSummaryErrors(
-    componentDefs: FormComponentDefinitionFrame[] | null | undefined,
-    name: string | null | undefined = null,
-    control: AbstractControl | null | undefined = null,
-    parents: string[] | null = null,
-    results: FormValidatorSummaryErrors[] | null = null,
-  ): FormValidatorSummaryErrors[] {
-    // Build a flattened array of control errors.
-    // Include the names of the parent controls for each control.
-    if (!parents) {
-      parents = [];
-    }
-    if (!results) {
-      results = [];
+  public getFormValidatorSummaryErrors(mapEntry: FormFieldCompMapEntry | null): FormValidatorSummaryErrors[] {
+    const result: FormValidatorSummaryErrors[] = [];
+
+    if (!mapEntry) {
+      this.loggerService.warn(`Cannot get form validator summary errors due to missing mapEntry.`);
+      return result;
     }
 
-    // control
-    name = name || null;
+    // Get form component id and label.
+    const { id, labelMessage } = this.componentIdLabel(mapEntry.compConfigJson);
 
-    // TODO: Find the component definition that matches the angular form control using the path instead of only name.
-    //  Using name only might find the wrong form component definition, as names are only unique at the same level of nesting.
-    const componentDef = componentDefs?.find(i => !!name && i?.name === name) ?? null;
-    const {id, labelMessage} = this.componentIdLabel(componentDef);
-    const errors = this.getFormValidatorComponentErrors(control);
-
-    // Only add the result if there are errors.
-    if (errors.length > 0) {
-      results.push({id: id, message: labelMessage, errors: errors, parents: parents});
-    }
-
-    // child controls
-    if ("controls" in (control ?? {})) {
-      for (const [name, childControl] of Object.entries((control as FormGroup)?.controls ?? {})) {
-        // Create a new array for the parents, so that the existing array of parent names is not modified.
-        const newParents = !!name ? [...parents, name] : [...parents];
-        this.getFormValidatorSummaryErrors(componentDefs, name, childControl, newParents, results);
+    // Get the validation errors from the form control.
+    const formControl = mapEntry.model?.formControl;
+    const lineagePaths = mapEntry.lineagePaths;
+    if (formControl && lineagePaths) {
+      const errors = this.getFormValidatorComponentErrors(formControl);
+      if (errors.length > 0) {
+        result.push({ id, message: labelMessage, errors, lineagePaths });
       }
     }
 
-    // output
-    return results;
+    // Get the validation errors from any child controls.
+    for (const childMapEntry of mapEntry.component?.formFieldCompMapEntries ?? []) {
+      result.push(...this.getFormValidatorSummaryErrors(childMapEntry));
+    }
+
+    return result;
   }
 
   /**
@@ -444,15 +467,7 @@ export class FormService extends HttpClientService {
    * @param control
    */
   public getFormValidatorComponentErrors(control: AbstractControl | null | undefined): FormValidatorComponentErrors[] {
-    return Object.entries(control?.errors ?? {})
-        .map(([key, item]) => {
-          return {
-            class: key,
-            message: item.message ?? null,
-            params: {...item.params},
-          }
-        })
-      ?? [];
+    return this.validatorsSupport.getFormValidatorComponentErrors(control?.errors ?? {});
   }
 
   /**
@@ -476,7 +491,7 @@ export class FormService extends HttpClientService {
     const labelMessage = componentDef?.layout?.config?.label || null;
 
     // build the result
-    return {id: id, labelMessage: labelMessage};
+    return { id: id, labelMessage: labelMessage };
   }
 
   /**
@@ -504,7 +519,7 @@ export class FormService extends HttpClientService {
       if (componentsLoaded()) {
         status.set(FormStatus.READY);
         this.loggerService.debug(`${this.logName}: All components for ${name} are ready. Form is ready to be used. ${readyMsg}`);
-      } else{
+      } else {
         const namesNotReady = componentsNotReady?.map(i => i?.compConfigJson?.name) ?? [];
         const waitingMsg = `Component '${name}' is waiting for ${componentsNotReady.length} child components ${namesNotReady.join(',')} to be ready.`;
         this.loggerService.debug(`${this.logName}: ${waitingMsg} ${readyMsg}`);
@@ -526,7 +541,7 @@ export class FormService extends HttpClientService {
   public setValidators(
     formControl?: AbstractControl | null,
     validators?: FormValidatorConfig[] | null,
-    enabledGroups?: string[]| null,
+    enabledGroups?: string[] | null,
   ): void {
     if (!formControl) {
       this.loggerService.warn(`${this.logName}: Cannot set validators because formControl is falsy.`);
@@ -582,7 +597,7 @@ export class FormService extends HttpClientService {
       url.searchParams.set('formName', formName?.toString());
     }
 
-    const result = await firstValueFrom(this.http.get<{data: FormConfigFrame}>(url.href, this.requestOptions));
+    const result = await firstValueFrom(this.http.get<{ data: FormConfigFrame }>(url.href, this.requestOptions));
     this.loggerService.info(`Get form fields from url: ${url}`, result);
     return result?.data;
   }
@@ -604,7 +619,7 @@ export class FormService extends HttpClientService {
       : new URL(`${this.brandingAndPortalUrl}/record/default/${recordType}`);
     url.searchParams.set('ts', ts);
 
-    const result = await firstValueFrom(this.http.get<{data: Record<string, unknown>}>(url.href, this.requestOptions));
+    const result = await firstValueFrom(this.http.get<{ data: Record<string, unknown> }>(url.href, this.requestOptions));
     this.loggerService.info(`Get model data from url: ${url}`, result);
     return result?.['data'] ?? {};
   }
@@ -645,10 +660,17 @@ export class FormService extends HttpClientService {
   /**
    * Get all the compiled items for the form.
    * @param recordType The form record type.
+   * @param oid The record id.
+   * @param formMode The form mode.
    */
-  public async getDynamicImportFormCompiledItems(recordType: string) {
+  public async getDynamicImportFormCompiledItems(recordType: string, oid?: string, formMode?: FormModesConfig) {
     const path = ['dynamicAsset', 'formCompiledItems', recordType?.toString()];
-    const result = await this.utilityService.getDynamicImport(this.brandingAndPortalUrl, path);
+    if (oid) {
+      path.push(oid?.toString());
+    }
+    const params = formMode === "edit" ? { edit: "true" } : undefined;
+    const result = await this.utilityService.getDynamicImport(this.brandingAndPortalUrl, path, params);
+    // TODO add a type for the result -  {evaluate: function(key, context, extra)}
     return result;
   }
 
@@ -658,16 +680,16 @@ export class FormService extends HttpClientService {
    * @param base The base paths.
    * @param more The relative paths to append.
    */
-  public buildLineagePaths(base?: LineagePaths, more?: LineagePaths) : LineagePaths {
+  public buildLineagePaths(base?: LineagePaths, more?: LineagePaths): LineagePaths {
     // Delegate to shared helper to keep existing FormService API intact.
     return buildLineagePathsHelper(base, more);
   }
 
   /**
    * Reshapes a FormFieldCompMapEntry into a JSONataClientQuerySourceProperty.
-   * 
-   * @param item 
-   * @returns 
+   *
+   * @param item
+   * @returns
    */
   public transformIntoJSONataProperty(item: FormFieldCompMapEntry): JSONataClientQuerySourceProperty {
     if (!item) {
@@ -693,7 +715,7 @@ export class FormService extends HttpClientService {
 
   /**
    * Transforms a JSONata entry to a JSON Pointer friendly object.
-   * 
+   *
    * @param jsonDoc - arbitrary object to build on
    * @param formFieldEntry The form field entry associated with the JSONata entry.
    * @param jsonataEntry The JSONata entry to be transformed into a JSON Pointer friendly object.
@@ -708,9 +730,9 @@ export class FormService extends HttpClientService {
         jsonPointer: jsonataEntry.jsonPointer
       }
     };
-    
+
     // Recursively build the object structure if there are children
-    if (jsonataEntry.children && jsonataEntry.children.length > 0) { 
+    if (jsonataEntry.children && jsonataEntry.children.length > 0) {
       for (let i = 0; i < jsonataEntry.children.length; i++) {
         const childEntry = jsonataEntry.children[i];
         const childFormFieldEntry = formFieldEntry?.component?.formFieldCompMapEntries?.find(c => c.compConfigJson?.name === childEntry.name);
@@ -718,17 +740,17 @@ export class FormService extends HttpClientService {
           this.transformJSONataEntryToJSONPointerSource(object, childFormFieldEntry, childEntry);
         }
       }
-    } 
+    }
     _set(jsonDoc, this.getPropertyNameFromJSONPointerAsNumber(jsonataEntry?.jsonPointer, jsonataEntry.name), object);
     return jsonDoc;
   }
 
   /**
-   * Convenience method to get the property name from a JSON Pointer string as a number. Converts last part of the segment to number if possible, otherwise returns the default name. No, the name will not always be a number but conversion is prioritised as per JSON Pointer spec. 
-   * 
-   * @param jsonPointer 
-   * @param defaultName 
-   * @returns 
+   * Convenience method to get the property name from a JSON Pointer string as a number. Converts last part of the segment to number if possible, otherwise returns the default name. No, the name will not always be a number but conversion is prioritised as per JSON Pointer spec.
+   *
+   * @param jsonPointer
+   * @param defaultName
+   * @returns
    */
   private getPropertyNameFromJSONPointerAsNumber(jsonPointer?: string, defaultName: string = ''): string {
     // Intentionally rebuilding the array to decouple this logic from the source of the JSON Pointer data
@@ -739,9 +761,9 @@ export class FormService extends HttpClientService {
 
   /**
    * Reshapes a FormFieldCompMapEntry array into a JSONataQuerySource. Needed to prepare for JSONata queries.
-   * 
-   * @param origObject 
-   * @returns 
+   *
+   * @param origObject
+   * @returns
    */
   public getJSONataQuerySource(origObject: FormFieldCompMapEntry[]): JSONataQuerySource {
     let queryDoc: JSONataQuerySourceProperty[] = [];
@@ -749,7 +771,7 @@ export class FormService extends HttpClientService {
     // loop through each item in the original object and build the query source, index is important
     for (let i = 0; i < origObject.length; i++) {
       const item = origObject[i];
-      
+
       const propertyEntry = this.transformIntoJSONataProperty(item);
       queryDoc.push(propertyEntry);
       this.transformJSONataEntryToJSONPointerSource(jsonPointerSource, item, propertyEntry);
@@ -766,7 +788,7 @@ export class FormService extends HttpClientService {
   /**
    * Queries a JSONata source using the provided expression. Returns an array of FormFieldCompMapEntry objects
    * corresponding to the results, or, if `returnPointerOnly` is true, returns only the JSON pointer strings.
-   * 
+   *
    * @param jsonataSource The JSONataQuerySource to query.
    * @param jsonataExpression The JSONata expression to evaluate.
    * @param returnPointerOnly If true, only the JSON pointer strings are returned. Defaults to false.
@@ -780,7 +802,7 @@ export class FormService extends HttpClientService {
     const queryRes = await queryJSONata(
       jsonataSource,
       jsonataExpression
-    ); 
+    );
     if (returnPointerOnly) {
       return queryRes;
     }
@@ -791,13 +813,13 @@ export class FormService extends HttpClientService {
         const obj = getObjectWithJsonPointer(jsonataSource.jsonPointerSource, result.jsonPointer);
         returnArr.push(obj?.val?.metadata?.formFieldEntry);
       }
-    } 
+    }
     return returnArr;
   }
 }
 
 /**
- *  This client-side, Angular specific data model of the downloaded form configuration.
+ *  This is a client-side, Angular specific data model of the downloaded form configuration.
  *  This includes Angular's FormControl instances for binding UI components to the form.
  */
 export class FormComponentsMap {
@@ -809,11 +831,14 @@ export class FormComponentsMap {
    * The form configuration from the server.
    */
   formConfig: FormConfigFrame;
-  completeGroupMap: { [key: string]: FormFieldCompMapEntry } | undefined;
+  /**
+   * Map of item name to form field component map entry.
+   */
+  completeGroupMap?: { [key: string]: FormFieldCompMapEntry };
   /**
    * Mapping of name to angular FormControl. Used to create angular form.
    */
-  withFormControl: { [key: string]: FormControl } | undefined;
+  withFormControl?: { [key: string]: FormControl };
 
   constructor(components: FormFieldCompMapEntry[], formConfig: FormConfigFrame) {
     this.components = components;
@@ -828,5 +853,5 @@ export class FormComponentsMap {
  */
 interface JSONataResultDoc {
   metadata?: Record<string, unknown>;
-  [key: string]: unknown;   
-}  
+  [key: string]: unknown;
+}
